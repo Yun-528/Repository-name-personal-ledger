@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>个人记账</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Local Ledger</p>
+          <h1>个人记账</h1>
+        </div>
+        <div class="actions">
+          <button class="icon-button" id="exportJson" title="导出 JSON" aria-label="导出 JSON">↓</button>
+          <label class="icon-button" title="导入 JSON" aria-label="导入 JSON">
+            ↑
+            <input id="importJson" type="file" accept="application/json" />
+          </label>
+          <button class="icon-button danger" id="clearAll" title="清空数据" aria-label="清空数据">×</button>
+        </div>
+      </section>
+
+      <section class="summary-grid" aria-label="本月概览">
+        <article class="metric balance">
+          <span>本月结余</span>
+          <strong id="monthBalance">¥0.00</strong>
+        </article>
+        <article class="metric">
+          <span>本月收入</span>
+          <strong class="income" id="monthIncome">¥0.00</strong>
+        </article>
+        <article class="metric">
+          <span>本月支出</span>
+          <strong class="expense" id="monthExpense">¥0.00</strong>
+        </article>
+        <article class="metric">
+          <span>总记录</span>
+          <strong id="totalCount">0</strong>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <div class="left-rail">
+          <section class="panel calendar-panel">
+            <div class="panel-head calendar-head">
+              <button class="icon-button flat" id="prevMonth" type="button" title="上个月" aria-label="上个月">‹</button>
+              <h2 id="calendarTitle">本月</h2>
+              <button class="icon-button flat" id="nextMonth" type="button" title="下个月" aria-label="下个月">›</button>
+            </div>
+            <div class="weekday-row" aria-hidden="true">
+              <span>一</span>
+              <span>二</span>
+              <span>三</span>
+              <span>四</span>
+              <span>五</span>
+              <span>六</span>
+              <span>日</span>
+            </div>
+            <div id="calendarGrid" class="calendar-grid" aria-label="月历视图"></div>
+          </section>
+
+          <form id="entryForm" class="entry-form" autocomplete="off">
+            <div class="form-head">
+              <div>
+                <p class="eyebrow">Entry</p>
+                <h2 id="formTitle">新增记录</h2>
+              </div>
+              <button class="text-button" id="cancelEdit" type="button" hidden>取消编辑</button>
+            </div>
+
+            <div class="segmented" role="group" aria-label="收支类型">
+              <input type="radio" id="expenseType" name="type" value="expense" checked />
+              <label for="expenseType">支出</label>
+              <input type="radio" id="incomeType" name="type" value="income" />
+              <label for="incomeType">收入</label>
+            </div>
+
+            <label>
+              金额
+              <input id="amount" name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+            </label>
+
+            <div class="form-row">
+              <div class="managed-field">
+                <label>
+                  大分类
+                  <select id="category" name="category" required></select>
+                </label>
+                <div class="manage-actions">
+                  <button class="text-button" id="renameCategory" type="button">重命名</button>
+                  <button class="text-button danger" id="deleteCategory" type="button">删除</button>
+                </div>
+              </div>
+              <div class="managed-field">
+                <label>
+                  小项目
+                  <select id="subcategory" name="subcategory" required></select>
+                </label>
+                <div class="manage-actions">
+                  <button class="text-button" id="renameSubcategory" type="button">重命名</button>
+                  <button class="text-button danger" id="deleteSubcategory" type="button">删除</button>
+                </div>
+              </div>
+            </div>
+
+            <label>
+              日期
+              <input id="date" name="date" type="date" required />
+            </label>
+
+            <label>
+              备注
+              <input id="note" name="note" type="text" maxlength="80" placeholder="例如：午餐、工资、地铁" />
+            </label>
+
+            <button class="primary-button" id="submitEntry" type="submit">添加记录</button>
+          </form>
+        </div>
+
+        <section class="panel detail-panel">
+          <div class="day-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Selected Day</p>
+                <h2 id="selectedDateTitle">今日明细</h2>
+              </div>
+              <div class="day-total">
+                <span class="income" id="dayIncome">收入 ¥0.00</span>
+                <span class="expense" id="dayExpense">支出 ¥0.00</span>
+                <span id="dayBalance">结余 ¥0.00</span>
+              </div>
+            </div>
+            <div id="dayList" class="day-list"></div>
+          </div>
+
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Month</p>
+              <h2>月度明细</h2>
+            </div>
+            <div class="filters">
+              <select id="monthFilter" aria-label="月份筛选"></select>
+              <select id="typeFilter" aria-label="类型筛选">
+                <option value="all">全部</option>
+                <option value="expense">支出</option>
+                <option value="income">收入</option>
+              </select>
+            </div>
+          </div>
+          <div id="entryList" class="entry-list"></div>
+          <p class="empty-state" id="emptyState">还没有记录，先添加一笔吧。</p>
+        </section>
+      </section>
+
+      <section class="insights">
+        <div class="panel category-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Analysis</p>
+              <h2>支出分类</h2>
+            </div>
+            <span id="categoryTotal">¥0.00</span>
+          </div>
+          <div id="categoryList" class="category-list"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Budget</p>
+              <h2>预算提醒</h2>
+            </div>
+            <label class="budget-input">
+              月预算
+              <input id="budget" type="number" min="0" step="50" placeholder="设置预算" />
+            </label>
+          </div>
+          <div class="budget-bar">
+            <span id="budgetProgress"></span>
+          </div>
+          <p id="budgetText" class="budget-text">设置月预算后，会显示本月支出进度。</p>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
