@@ -1,20 +1,20 @@
 :root {
   color-scheme: light;
-  --bg: #f5f6f1;
+  --bg: #f6f8f5;
   --panel: #ffffff;
   --panel-soft: #fbfcf8;
   --ink: #17211c;
   --muted: #6f7a73;
   --line: #e4e8df;
-  --green: #12824d;
-  --green-soft: #e7f6ed;
+  --green: #13965f;
+  --green-soft: #e7f7ef;
   --red: #c5483e;
   --red-soft: #fae9e7;
   --blue: #2f67b1;
   --blue-soft: #e8f0fb;
   --gold: #a56b12;
-  --shadow: 0 20px 55px rgba(30, 42, 36, 0.09);
-  --radius: 22px;
+  --shadow: 0 16px 40px rgba(30, 42, 36, 0.08);
+  --radius: 24px;
 }
 
 * {
@@ -24,9 +24,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(47, 103, 177, 0.12), transparent 32rem),
-    linear-gradient(180deg, #fbfcf8 0%, var(--bg) 48%);
+  background: linear-gradient(180deg, #ffffff 0%, var(--bg) 44%);
   color: var(--ink);
   font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
 }
@@ -42,9 +40,13 @@ button {
 }
 
 .app-shell {
-  width: min(1180px, calc(100% - 28px));
+  width: min(980px, calc(100% - 24px));
   margin: 0 auto;
-  padding: 24px 0 42px;
+  padding: 24px 0 112px;
+}
+
+.app-view[hidden] {
+  display: none;
 }
 
 .topbar,
@@ -61,7 +63,7 @@ button {
 .topbar {
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .eyebrow {
@@ -81,7 +83,7 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-size: clamp(32px, 4vw, 50px);
+  font-size: clamp(28px, 4vw, 42px);
   letter-spacing: 0;
 }
 
@@ -137,10 +139,14 @@ h2 {
   color: var(--red);
 }
 
+.back-button {
+  margin-bottom: 10px;
+}
+
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 13px;
+  grid-template-columns: 1.25fr 1fr 1fr;
+  gap: 12px;
   margin-bottom: 16px;
 }
 
@@ -154,7 +160,7 @@ h2 {
 }
 
 .metric {
-  min-height: 112px;
+  min-height: 106px;
   padding: 18px;
 }
 
@@ -173,6 +179,7 @@ h2 {
 }
 
 .metric.balance {
+  grid-row: span 2;
   background: linear-gradient(135deg, #17211c, #2f3d34);
   color: #fff;
 }
@@ -220,6 +227,11 @@ h2 {
   margin-bottom: 14px;
 }
 
+.form-head-actions {
+  display: flex;
+  gap: 14px;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -254,13 +266,19 @@ label {
 input,
 select {
   width: 100%;
-  min-height: 46px;
+  min-height: 52px;
   border: 1px solid var(--line);
   border-radius: 15px;
   background: var(--panel-soft);
   color: var(--ink);
   padding: 0 13px;
   outline: none;
+}
+
+input#amount {
+  min-height: 64px;
+  font-size: 28px;
+  font-weight: 900;
 }
 
 input:focus,
@@ -284,7 +302,7 @@ select:focus {
 
 .segmented label {
   display: grid;
-  min-height: 42px;
+  min-height: 48px;
   place-items: center;
   border-radius: 13px;
   color: var(--muted);
@@ -308,11 +326,45 @@ select:focus {
   box-shadow: 0 16px 28px rgba(23, 33, 28, 0.18);
 }
 
+.secondary-button {
+  background: var(--green-soft);
+  color: var(--green);
+  box-shadow: none;
+}
+
+.home-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.home-recent-panel {
+  margin-top: 0;
+}
+
+.danger-button {
+  background: var(--red);
+}
+
+.file-button {
+  display: grid;
+  place-items: center;
+}
+
+.file-button input {
+  display: none;
+}
+
 .calendar-head {
   display: grid;
   grid-template-columns: 44px 1fr 44px;
   align-items: center;
   text-align: center;
+}
+
+.calendar-head h2 {
+  font-size: 22px;
 }
 
 .weekday-row,
@@ -334,13 +386,13 @@ select:focus {
   position: relative;
   display: grid;
   align-content: start;
-  min-height: 78px;
+  min-height: 86px;
   border: 1px solid transparent;
-  border-radius: 17px;
+  border-radius: 18px;
   background: var(--panel-soft);
   color: var(--ink);
   cursor: pointer;
-  padding: 8px;
+  padding: 9px;
   text-align: left;
 }
 
@@ -360,7 +412,7 @@ select:focus {
 }
 
 .calendar-day.is-selected {
-  background: var(--ink);
+  background: var(--green);
   color: #fff;
 }
 
@@ -403,18 +455,41 @@ select:focus {
 }
 
 .day-total {
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.day-stat-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel-soft);
+  padding: 12px;
+}
+
+.day-stat-card span {
+  display: block;
+  margin-bottom: 6px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
 }
 
-.day-total span {
-  border-radius: 999px;
-  background: #f0f3ee;
-  padding: 7px 10px;
+.day-stat-card strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.balance-stat {
+  background: var(--ink);
+  color: #fff;
+}
+
+.balance-stat span {
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .entry-card {
@@ -423,9 +498,10 @@ select:focus {
   gap: 12px;
   align-items: center;
   border: 1px solid var(--line);
-  border-radius: 19px;
+  border-radius: 20px;
   background: var(--panel-soft);
-  padding: 12px;
+  padding: 13px;
+  cursor: pointer;
 }
 
 .entry-icon {
@@ -565,6 +641,74 @@ select:focus {
   color: var(--muted);
 }
 
+.settings-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.bottom-nav {
+  position: fixed;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 20;
+  display: grid;
+  width: min(520px, calc(100% - 24px));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(228, 232, 223, 0.9);
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 44px rgba(23, 33, 28, 0.16);
+  padding: 8px;
+  backdrop-filter: blur(18px);
+}
+
+.bottom-nav a {
+  display: grid;
+  min-height: 54px;
+  place-items: center;
+  border-radius: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.bottom-nav span {
+  display: block;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.bottom-nav a.is-active {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.fab {
+  position: fixed;
+  right: max(18px, calc((100vw - 980px) / 2 + 18px));
+  bottom: calc(112px + env(safe-area-inset-bottom));
+  z-index: 18;
+  display: grid;
+  width: 60px;
+  height: 60px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  cursor: pointer;
+  font-size: 32px;
+  font-weight: 800;
+  box-shadow: 0 18px 36px rgba(18, 130, 77, 0.28);
+}
+
+.month-list-panel {
+  margin-top: 16px;
+}
+
 @media (max-width: 900px) {
   .summary-grid,
   .workspace,
@@ -580,7 +724,7 @@ select:focus {
 @media (max-width: 560px) {
   .app-shell {
     width: min(100% - 18px, 1180px);
-    padding: 14px 0 28px;
+    padding: 14px 0 112px;
   }
 
   .topbar {
@@ -594,6 +738,11 @@ select:focus {
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+  }
+
+  .metric.balance {
+    grid-column: 1 / -1;
+    grid-row: auto;
   }
 
   .metric,
@@ -617,6 +766,11 @@ select:focus {
     flex-direction: column;
   }
 
+  .form-head-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .form-row,
   .category-row {
     grid-template-columns: 1fr;
@@ -626,6 +780,11 @@ select:focus {
   .actions,
   .day-total {
     width: 100%;
+  }
+
+  .home-actions,
+  .day-total {
+    grid-template-columns: 1fr;
   }
 
   .filters select {
@@ -638,7 +797,7 @@ select:focus {
   }
 
   .calendar-day {
-    min-height: 66px;
+    min-height: 72px;
     border-radius: 13px;
     padding: 5px;
   }
@@ -670,5 +829,16 @@ select:focus {
   .budget-input {
     width: 100%;
     grid-template-columns: 1fr;
+  }
+
+  .bottom-nav {
+    width: min(100% - 16px, 560px);
+    border-radius: 22px;
+    padding: 7px;
+  }
+
+  .bottom-nav a {
+    min-height: 50px;
+    font-size: 11px;
   }
 }

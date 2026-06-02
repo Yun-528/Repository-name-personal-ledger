@@ -64,6 +64,15 @@ const dayBalance = document.querySelector("#dayBalance");
 const formTitle = document.querySelector("#formTitle");
 const submitEntry = document.querySelector("#submitEntry");
 const cancelEdit = document.querySelector("#cancelEdit");
+const backFromFormButton = document.querySelector("#backFromForm");
+const appViews = document.querySelectorAll(".app-view");
+const navLinks = document.querySelectorAll("[data-nav]");
+const recordNav = document.querySelector("#recordNav");
+const addForDayButton = document.querySelector("#addForDay");
+const backToCalendarButton = document.querySelector("#backToCalendar");
+const goCalendarButton = document.querySelector("#goCalendar");
+const addTodayButton = document.querySelector("#addToday");
+const homeRecentList = document.querySelector("#homeRecentList");
 const renameCategoryButton = document.querySelector("#renameCategory");
 const deleteCategoryButton = document.querySelector("#deleteCategory");
 const renameSubcategoryButton = document.querySelector("#renameSubcategory");
@@ -73,6 +82,9 @@ dateInput.value = state.selectedDate;
 budgetInput.value = state.budget || "";
 updateCategoryOptions("expense");
 render();
+renderRoute();
+
+window.addEventListener("hashchange", renderRoute);
 
 typeInputs.forEach((input) => {
   input.addEventListener("change", () => {
@@ -138,6 +150,7 @@ form.addEventListener("submit", (event) => {
   saveEntries();
   resetForm(record.date);
   render();
+  navigateTo(`#day/${record.date}`);
 });
 
 entryList.addEventListener("click", handleRecordAction);
@@ -146,7 +159,16 @@ dayList.addEventListener("click", handleRecordAction);
 calendarGrid.addEventListener("click", (event) => {
   const button = event.target.closest("[data-date]");
   if (!button) return;
-  selectDate(button.dataset.date);
+  navigateTo(`#day/${button.dataset.date}`);
+});
+
+addForDayButton.addEventListener("click", () => navigateTo(`#add/${state.selectedDate}`));
+backToCalendarButton.addEventListener("click", () => navigateTo("#calendar"));
+goCalendarButton.addEventListener("click", () => navigateTo("#calendar"));
+addTodayButton.addEventListener("click", () => navigateTo(`#add/${todayISO()}`));
+recordNav.addEventListener("click", (event) => {
+  event.preventDefault();
+  navigateTo(`#add/${state.selectedDate || todayISO()}`);
 });
 
 monthFilter.addEventListener("change", () => {
@@ -171,7 +193,17 @@ budgetInput.addEventListener("input", () => {
 
 document.querySelector("#prevMonth").addEventListener("click", () => shiftMonth(-1));
 document.querySelector("#nextMonth").addEventListener("click", () => shiftMonth(1));
-cancelEdit.addEventListener("click", () => resetForm(state.selectedDate));
+cancelEdit.addEventListener("click", () => {
+  const targetDate = dateInput.value || state.selectedDate || todayISO();
+  resetForm(targetDate);
+  navigateTo(`#day/${targetDate}`);
+});
+
+backFromFormButton.addEventListener("click", () => {
+  const targetDate = dateInput.value || state.selectedDate || todayISO();
+  if (state.editingId) resetForm(targetDate);
+  navigateTo(`#day/${targetDate}`);
+});
 
 document.querySelector("#clearAll").addEventListener("click", () => {
   if (!state.entries.length) return;
@@ -247,8 +279,102 @@ function render() {
   emptyState.style.display = visibleEntries.length ? "none" : "block";
   renderCalendar(monthEntries);
   renderDay();
+  renderHome();
   renderCategories(monthEntries);
   renderBudget(expense);
+  updateRecordNav();
+}
+
+function parseRoute() {
+  const hash = location.hash.replace(/^#/, "") || "home";
+  const [name, param] = hash.split("/");
+  const allowed = ["home", "calendar", "day", "add", "edit", "stats", "settings"];
+  return allowed.includes(name) ? { name, param } : { name: "home" };
+}
+
+function renderRoute() {
+  const route = parseRoute();
+
+  if (route.name === "day") {
+    const date = validDate(route.param) ? route.param : todayISO();
+    state.selectedDate = date;
+    state.month = date.slice(0, 7);
+    dateInput.value = date;
+  }
+
+  if (route.name === "add") {
+    const date = validDate(route.param) ? route.param : state.selectedDate || todayISO();
+    state.selectedDate = date;
+    state.month = date.slice(0, 7);
+    resetForm(date);
+  }
+
+  if (route.name === "edit") {
+    if (!prepareEditRoute(route.param)) return;
+  }
+
+  render();
+  showView(viewForRoute(route.name));
+  setActiveTab(route.name);
+}
+
+function viewForRoute(routeName) {
+  const map = {
+    home: "homeView",
+    calendar: "calendarView",
+    day: "dayView",
+    add: "recordFormView",
+    edit: "recordFormView",
+    stats: "statsView",
+    settings: "settingsView",
+  };
+  return map[routeName] || "homeView";
+}
+
+function showView(viewId) {
+  appViews.forEach((view) => {
+    view.hidden = view.id !== viewId;
+  });
+}
+
+function setActiveTab(routeName) {
+  const active = routeName === "add" || routeName === "edit" ? "record" : routeName;
+  navLinks.forEach((link) => {
+    link.classList.toggle("is-active", link.dataset.nav === active);
+  });
+}
+
+function navigateTo(hash) {
+  if (location.hash === hash) {
+    renderRoute();
+    return;
+  }
+  location.hash = hash;
+}
+
+function updateRecordNav() {
+  recordNav.href = `#add/${state.selectedDate || todayISO()}`;
+}
+
+function prepareEditRoute(id) {
+  const entry = state.entries.find((item) => item.id === id);
+  if (!entry) {
+    navigateTo("#home");
+    return false;
+  }
+
+  state.editingId = id;
+  state.selectedDate = entry.date;
+  state.month = entry.date.slice(0, 7);
+  setFormType(entry.type);
+  amountInput.value = entry.amount;
+  updateCategoryOptions(entry.type, entry.category, entry.subcategory);
+  dateInput.value = entry.date;
+  noteInput.value = entry.note || "";
+  formTitle.textContent = "编辑记录";
+  submitEntry.textContent = "保存修改";
+  cancelEdit.hidden = false;
+  return true;
 }
 
 function renderMonthOptions() {
@@ -259,6 +385,15 @@ function renderMonthOptions() {
   monthFilter.innerHTML = months
     .map((month) => `<option value="${month}" ${month === state.month ? "selected" : ""}>${month}</option>`)
     .join("");
+}
+
+function renderHome() {
+  const recentEntries = [...state.entries]
+    .sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 5);
+
+  homeRecentList.innerHTML =
+    recentEntries.map(renderEntryCard).join("") || '<p class="empty-state is-visible">还没有记录，先添加今天的第一笔吧。</p>';
 }
 
 function renderCalendar(monthEntries) {
@@ -310,9 +445,9 @@ function renderDay() {
   const expense = sum(dayEntries.filter((entry) => entry.type === "expense"));
 
   selectedDateTitle.textContent = `${formatDateTitle(state.selectedDate)} 明细`;
-  dayIncome.textContent = `收入 ${money(income)}`;
-  dayExpense.textContent = `支出 ${money(expense)}`;
-  dayBalance.textContent = `结余 ${money(income - expense)}`;
+  dayIncome.textContent = money(income);
+  dayExpense.textContent = money(expense);
+  dayBalance.textContent = money(income - expense);
 
   dayList.innerHTML =
     dayEntries.map(renderEntryCard).join("") ||
@@ -321,7 +456,7 @@ function renderDay() {
 
 function renderEntryCard(entry) {
   return `
-    <article class="entry-card ${entry.type}">
+    <article class="entry-card ${entry.type}" data-open-edit="${entry.id}">
       <div class="entry-icon">${entry.type === "income" ? "入" : "出"}</div>
       <div class="entry-meta">
         <strong>${escapeHTML(entry.category)} · ${escapeHTML(entry.subcategory || "其他")}</strong>
@@ -383,14 +518,20 @@ function renderBudget(currentExpense) {
 }
 
 function handleRecordAction(event) {
+  const actionButton = event.target.closest("button");
+  const card = event.target.closest("[data-open-edit]");
+
   const editButton = event.target.closest("[data-edit]");
   if (editButton) {
-    beginEdit(editButton.dataset.edit);
+    navigateTo(`#edit/${editButton.dataset.edit}`);
     return;
   }
 
   const deleteButton = event.target.closest("[data-delete]");
-  if (!deleteButton) return;
+  if (!deleteButton) {
+    if (card && !actionButton) navigateTo(`#edit/${card.dataset.openEdit}`);
+    return;
+  }
 
   const entry = state.entries.find((item) => item.id === deleteButton.dataset.delete);
   if (!entry) return;
