@@ -155,6 +155,7 @@ form.addEventListener("submit", (event) => {
 
 entryList.addEventListener("click", handleRecordAction);
 dayList.addEventListener("click", handleRecordAction);
+homeRecentList.addEventListener("click", handleRecordAction);
 
 calendarGrid.addEventListener("click", (event) => {
   const button = event.target.closest("[data-date]");
