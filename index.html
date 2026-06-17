@@ -4,6 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>个人记账</title>
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="theme-color" content="#42c957" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Ledger" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -16,40 +22,80 @@
       </section>
 
       <section class="app-view" id="homeView">
-        <section class="summary-grid" aria-label="本月概览">
-          <article class="metric balance">
-            <span>本月结余</span>
-            <strong id="monthBalance">¥0.00</strong>
-          </article>
-          <article class="metric">
-            <span>本月收入</span>
-            <strong class="income" id="monthIncome">¥0.00</strong>
-          </article>
-          <article class="metric">
-            <span>本月支出</span>
-            <strong class="expense" id="monthExpense">¥0.00</strong>
-          </article>
-          <article class="metric">
-            <span>总记录</span>
-            <strong id="totalCount">0</strong>
-          </article>
+        <section class="home-dashboard">
+          <section class="home-profile-card">
+            <div class="home-cover" id="homeCover">
+              <button class="home-customize" id="openProfilePanel" type="button">自定义</button>
+              <a class="home-settings-link" href="#settings">设置</a>
+            </div>
+            <div class="home-profile-body">
+              <div class="home-avatar" id="homeAvatar" aria-label="头像"></div>
+              <div>
+                <p class="eyebrow">Today</p>
+                <h2 id="homeToday">今天</h2>
+              </div>
+            </div>
+            <div class="profile-panel" id="profilePanel" hidden>
+              <label class="profile-file-button">
+                设置头像
+                <input id="avatarInput" type="file" accept="image/*" />
+              </label>
+              <label class="profile-file-button">
+                设置背景图
+                <input id="coverInput" type="file" accept="image/*" />
+              </label>
+            </div>
+          </section>
+
+          <section class="home-month-card">
+            <div class="home-month-chart">
+              <canvas id="homeDonut" width="150" height="150" aria-label="本月支出分类图"></canvas>
+              <div class="home-donut-center">
+                <span>支出</span>
+                <strong id="homeMonthExpenseCenter">¥0</strong>
+              </div>
+            </div>
+            <div class="home-month-metrics">
+              <div><span>本月收入</span><strong class="income" id="monthIncome">¥0</strong></div>
+              <div><span>本月支出</span><strong class="expense" id="monthExpense">¥0</strong></div>
+              <div><span>本月结余</span><strong id="monthBalance">¥0</strong></div>
+            </div>
+          </section>
+
+          <section class="home-mini-grid">
+            <article><span>今日支出</span><strong id="homeTodayExpense">¥0</strong></article>
+            <article><span>食品</span><strong id="homeFoodExpense">¥0</strong></article>
+            <article><span>交通费</span><strong id="homeTrafficExpense">¥0</strong></article>
+            <article><span>预算剩余</span><strong id="homeBudgetRemaining">未设置</strong></article>
+          </section>
+
+          <section class="panel home-recent-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Recent</p>
+                <h2>最近记录</h2>
+              </div>
+            </div>
+            <div id="homeRecentList" class="entry-list"></div>
+          </section>
         </section>
-        <section class="home-actions" aria-label="快捷操作">
+        <section class="home-actions" aria-label="快捷操作" hidden>
           <button class="primary-button" id="goCalendar" type="button">查看日历</button>
           <button class="primary-button secondary-button" id="addToday" type="button">添加今天记录</button>
-        </section>
-        <section class="panel home-recent-panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Recent</p>
-              <h2>最近记录</h2>
-            </div>
-          </div>
-          <div id="homeRecentList" class="entry-list"></div>
         </section>
       </section>
 
       <section class="app-view" id="calendarView" hidden>
+        <section class="section-tabs-wrap">
+          <div>
+            <p class="eyebrow">History</p>
+            <h2>履历</h2>
+          </div>
+          <nav class="section-tabs" aria-label="履历视图">
+            <a href="#history/list">一览</a>
+            <a href="#history/calendar" class="is-active">日历</a>
+          </nav>
+        </section>
         <section class="panel calendar-panel">
           <div class="panel-head calendar-head">
             <button class="icon-button flat" id="prevMonth" type="button" title="上个月" aria-label="上个月">‹</button>
@@ -70,6 +116,16 @@
       </section>
 
       <section class="app-view" id="dayView" hidden>
+        <section class="section-tabs-wrap">
+          <div>
+            <p class="eyebrow">History</p>
+            <h2>履历</h2>
+          </div>
+          <nav class="section-tabs" aria-label="履历视图">
+            <a href="#history/list">一览</a>
+            <a href="#history/calendar">日历</a>
+          </nav>
+        </section>
         <section class="panel detail-panel">
           <button class="text-button back-button" id="backToCalendar" type="button">← 返回日历</button>
           <div class="day-panel">
@@ -81,15 +137,15 @@
               <div class="day-total">
                 <article class="day-stat-card">
                   <span>收入</span>
-                  <strong class="income" id="dayIncome">¥0.00</strong>
+                  <strong class="income" id="dayIncome">¥0</strong>
                 </article>
                 <article class="day-stat-card">
                   <span>支出</span>
-                  <strong class="expense" id="dayExpense">¥0.00</strong>
+                  <strong class="expense" id="dayExpense">¥0</strong>
                 </article>
                 <article class="day-stat-card balance-stat">
                   <span>结余</span>
-                  <strong id="dayBalance">¥0.00</strong>
+                  <strong id="dayBalance">¥0</strong>
                 </article>
               </div>
             </div>
@@ -97,6 +153,202 @@
           </div>
         </section>
         <button class="fab" id="addForDay" type="button" aria-label="添加记录">+</button>
+      </section>
+
+      <section class="app-view" id="recordInputView" hidden>
+        <section class="record-screen">
+          <nav class="record-subtabs" aria-label="记录方式">
+            <a href="#record/input" class="is-active" data-record-tab="input">手输入</a>
+            <a href="#record/simple" data-record-tab="simple">简单</a>
+          </nav>
+
+          <section class="record-card">
+            <div class="record-type-toggle" role="group" aria-label="收支类型">
+              <button class="is-selected" data-record-input-type="expense" type="button">支出</button>
+              <button data-record-input-type="income" type="button">收入</button>
+            </div>
+
+            <div class="calculator-display" aria-live="polite">
+              <span id="calculatorExpression">¥0</span>
+            </div>
+
+            <div class="calculator-grid" aria-label="金额键盘">
+              <button class="calculator-key" data-calc-key="7" type="button">7</button>
+              <button class="calculator-key" data-calc-key="8" type="button">8</button>
+              <button class="calculator-key" data-calc-key="9" type="button">9</button>
+              <button class="calculator-key operator" data-calc-key="÷" type="button">÷</button>
+              <button class="calculator-key" data-calc-key="4" type="button">4</button>
+              <button class="calculator-key" data-calc-key="5" type="button">5</button>
+              <button class="calculator-key" data-calc-key="6" type="button">6</button>
+              <button class="calculator-key operator" data-calc-key="×" type="button">×</button>
+              <button class="calculator-key" data-calc-key="1" type="button">1</button>
+              <button class="calculator-key" data-calc-key="2" type="button">2</button>
+              <button class="calculator-key" data-calc-key="3" type="button">3</button>
+              <button class="calculator-key operator" data-calc-key="-" type="button">-</button>
+              <button class="calculator-key" data-calc-key="00" type="button">00</button>
+              <button class="calculator-key" data-calc-key="0" type="button">0</button>
+              <button class="calculator-key" data-calc-key="." type="button">.</button>
+              <button class="calculator-key operator" data-calc-key="+" type="button">+</button>
+              <button class="calculator-key wide" id="inputCategoryButton" type="button">分类选择</button>
+              <button class="calculator-key primary-key" id="calculatorNext" type="button">下一步</button>
+              <button class="calculator-key danger-key" id="calculatorDelete" type="button">删除</button>
+            </div>
+
+            <p class="selected-category-line" id="inputSelectedCategory">未选择分类</p>
+            <input id="inputRecordDate" type="date" hidden />
+            <input id="inputRecordNote" type="text" maxlength="80" hidden />
+          </section>
+        </section>
+      </section>
+
+      <section class="app-view" id="recordCategoryView" hidden>
+        <section class="record-screen">
+          <header class="mobile-page-header">
+            <button class="header-back" id="backToRecordInput" type="button">‹ 返回</button>
+            <h1>选择分类</h1>
+            <span aria-hidden="true"></span>
+          </header>
+          <section class="record-card category-select-card">
+            <div id="recordCategoryGroups" class="record-list-stack"></div>
+          </section>
+        </section>
+      </section>
+
+      <section class="app-view" id="recordSubcategoryView" hidden>
+        <section class="record-screen">
+          <header class="mobile-page-header">
+            <button class="header-back" id="backToRecordCategory" type="button">‹ 返回</button>
+            <h1 id="recordSubcategoryTitle">选择子分类</h1>
+            <span aria-hidden="true"></span>
+          </header>
+          <section class="record-card category-select-card">
+            <div id="recordSubcategoryOptions" class="record-list-stack"></div>
+          </section>
+        </section>
+      </section>
+
+      <section class="app-view" id="recordCategorySettingsView" hidden>
+        <section class="record-screen">
+          <header class="mobile-page-header">
+            <button class="header-back" id="backFromCategorySettings" type="button">‹ 返回</button>
+            <h1>分类设置</h1>
+            <span aria-hidden="true"></span>
+          </header>
+          <section class="record-card category-select-card">
+            <div id="recordCategorySettingsList" class="record-list-stack"></div>
+          </section>
+        </section>
+      </section>
+
+      <section class="app-view" id="recordSubcategorySettingsView" hidden>
+        <section class="record-screen">
+          <header class="mobile-page-header">
+            <button class="header-back" id="backFromSubcategorySettings" type="button">‹ 返回</button>
+            <h1 id="recordSubcategorySettingsTitle">子分类设置</h1>
+            <span aria-hidden="true"></span>
+          </header>
+          <section class="record-card category-select-card">
+            <div id="recordSubcategorySettingsList" class="record-list-stack"></div>
+          </section>
+        </section>
+      </section>
+
+      <section class="app-view" id="recordCategoryFormView" hidden>
+        <section class="record-screen">
+          <header class="mobile-page-header">
+            <button class="header-back" id="backFromCategoryForm" type="button">‹ 返回</button>
+            <h1 id="categoryFormTitle">新增分类</h1>
+            <span aria-hidden="true"></span>
+          </header>
+          <section class="record-card category-form-card">
+            <p class="category-form-context" id="categoryFormContext" hidden></p>
+            <label>
+              名称
+              <input id="categoryFormName" type="text" maxlength="24" placeholder="分类名称" />
+            </label>
+            <div>
+              <p class="field-title">图标</p>
+              <div id="categoryIconGrid" class="icon-choice-grid"></div>
+            </div>
+            <button class="record-action-button" id="saveCategoryForm" type="button">保存</button>
+            <button class="category-delete-button" id="deleteCategoryForm" type="button" hidden>删除</button>
+          </section>
+        </section>
+      </section>
+
+      <section class="app-view" id="recordDetailView" hidden>
+        <section class="record-screen">
+          <header class="mobile-page-header">
+            <button class="header-back" id="backToRecordSubcategory" type="button">‹ 返回</button>
+            <h1 id="recordDetailTitle">支出详情</h1>
+            <span aria-hidden="true"></span>
+          </header>
+          <section class="record-detail-card">
+            <div class="detail-amount-row">
+              <span>金额</span>
+              <strong id="recordDetailAmount">¥0</strong>
+            </div>
+            <button class="detail-row" id="recordDetailCategoryRow" type="button">
+              <span>分类</span>
+              <strong class="detail-category-value"><span id="recordDetailIcon" class="record-list-icon">📁</span><span id="recordDetailPath">支出 &gt; 分类 &gt; 小分类</span></strong>
+            </button>
+            <label class="detail-row detail-date-row">
+              <span>日期</span>
+              <strong id="detailRecordDateLabel">今天</strong>
+              <input id="detailRecordDate" type="date" />
+            </label>
+            <label class="detail-note-field">
+              <span>备注</span>
+              <textarea id="detailRecordNote" maxlength="120" placeholder="备注"></textarea>
+            </label>
+          </section>
+          <div class="record-detail-savebar">
+            <button class="record-action-button" id="detailSaveRecord" type="button">记录</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="app-view" id="recordSimpleView" hidden>
+        <section class="record-screen">
+          <nav class="record-subtabs" aria-label="记录方式">
+            <a href="#record/input" data-record-tab="input">手输入</a>
+            <a href="#record/simple" class="is-active" data-record-tab="simple">简单</a>
+          </nav>
+
+          <section class="record-card simple-record-card">
+            <div class="record-type-toggle" role="group" aria-label="收支类型">
+              <button class="is-selected" data-simple-type="expense" type="button">支出</button>
+              <button data-simple-type="income" type="button">收入</button>
+            </div>
+
+            <label>
+              金额
+              <input id="simpleAmount" type="number" min="0.01" step="0.01" placeholder="0.00" />
+            </label>
+            <label>
+              日期
+              <input id="simpleDate" type="date" />
+            </label>
+            <label>
+              备注
+              <input id="simpleNote" type="text" maxlength="80" placeholder="例如：午餐、工资、地铁" />
+            </label>
+
+            <div>
+              <p class="field-title">常用分类</p>
+              <div id="simpleCategoryPills" class="category-pill-grid"></div>
+            </div>
+
+            <button class="text-button simple-more-category" id="simpleMoreCategory" type="button">分类选择</button>
+
+            <label id="simpleSubcategoryField" hidden>
+              小分类
+              <select id="simpleSubcategory"></select>
+            </label>
+
+            <button class="record-action-button" id="simpleSaveRecord" type="button">记录</button>
+          </section>
+        </section>
       </section>
 
       <section class="app-view" id="recordFormView" hidden>
@@ -161,41 +413,174 @@
         </form>
       </section>
 
-      <section class="app-view" id="statsView" hidden>
-        <section class="insights">
-          <div class="panel category-panel">
+      <section class="app-view" id="analysisSummaryView" hidden>
+        <section class="section-tabs-wrap">
+          <div>
+            <p class="eyebrow">Analysis</p>
+            <h2>分析</h2>
+          </div>
+          <nav class="section-tabs" aria-label="分析视图">
+            <a href="#analysis/budget">预算比</a>
+            <a href="#analysis/summary" class="is-active">收支</a>
+          </nav>
+        </section>
+        <section class="analysis-month-switcher">
+          <button id="analysisSummaryPrev" type="button" aria-label="上个月">‹</button>
+          <strong id="analysisSummaryRange">本月</strong>
+          <button id="analysisSummaryNext" type="button" aria-label="下个月">›</button>
+        </section>
+        <section class="analysis-layout">
+          <article class="panel analysis-chart-card">
+            <div class="donut-wrap">
+              <canvas id="summaryDonut" width="220" height="220" aria-label="支出分类环形图"></canvas>
+              <div class="donut-center">
+                <span>支出</span>
+                <strong id="summaryExpenseCenter">¥0</strong>
+              </div>
+            </div>
+          </article>
+          <article class="panel analysis-totals">
+            <div><span>收入</span><strong class="income" id="summaryIncome">¥0</strong></div>
+            <div><span>支出</span><strong class="expense" id="summaryExpense">¥0</strong></div>
+            <div><span>收支</span><strong id="summaryBalance">¥0</strong></div>
+          </article>
+          <article class="panel category-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Analysis</p>
-                <h2>支出分类</h2>
+                <p class="eyebrow">Category</p>
+                <h2>分类支出</h2>
               </div>
-              <span id="categoryTotal">¥0.00</span>
             </div>
             <div id="categoryList" class="category-list"></div>
+          </article>
+        </section>
+      </section>
+
+      <section class="app-view" id="analysisCategoryView" hidden>
+        <header class="mobile-page-header">
+          <button class="header-back" id="analysisCategoryBack" type="button">‹ 返回</button>
+          <h1 id="analysisCategoryTitle">分类</h1>
+          <button class="header-action" id="analysisCategoryEdit" type="button">编辑</button>
+        </header>
+        <section class="analysis-month-switcher">
+          <button id="analysisCategoryPrev" type="button" aria-label="上个月">‹</button>
+          <strong id="analysisCategoryRange">本月</strong>
+          <button id="analysisCategoryNext" type="button" aria-label="下个月">›</button>
+        </section>
+        <section class="analysis-layout">
+          <article class="panel analysis-chart-card">
+            <div class="donut-wrap">
+              <canvas id="analysisCategoryDonut" width="220" height="220" aria-label="子分类支出环形图"></canvas>
+              <div class="donut-center">
+                <span id="analysisCategoryCenterLabel">分类支出</span>
+                <strong id="analysisCategoryCenter">¥0</strong>
+              </div>
+            </div>
+          </article>
+          <article class="panel analysis-totals">
+            <div><span id="analysisCategoryTotalName">分类整体</span><strong class="expense" id="analysisCategoryTotalAmount">¥0</strong></div>
+          </article>
+          <article class="panel category-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Subcategory</p>
+                <h2>子分类</h2>
+              </div>
+            </div>
+            <div id="analysisSubcategoryList" class="category-list"></div>
+          </article>
+        </section>
+      </section>
+
+      <section class="app-view" id="analysisBudgetView" hidden>
+        <section class="section-tabs-wrap">
+          <div>
+            <p class="eyebrow">Analysis</p>
+            <h2>分析</h2>
           </div>
-          <div class="panel">
+          <nav class="section-tabs" aria-label="分析视图">
+            <a href="#analysis/budget" class="is-active">预算比</a>
+            <a href="#analysis/summary">收支</a>
+          </nav>
+        </section>
+        <section class="analysis-month-switcher">
+          <button id="analysisBudgetPrev" type="button" aria-label="上个月">‹</button>
+          <strong id="analysisBudgetRange">本月</strong>
+          <button id="analysisBudgetNext" type="button" aria-label="下个月">›</button>
+        </section>
+        <section class="analysis-layout">
+          <article class="panel budget-overview">
             <div class="panel-head">
               <div>
                 <p class="eyebrow">Budget</p>
-                <h2>预算提醒</h2>
+                <h2>预算比</h2>
               </div>
-              <label class="budget-input">
-                月预算
-                <input id="budget" type="number" min="0" step="50" placeholder="设置预算" />
-              </label>
+              <a class="text-button" href="#analysis/budget/settings">预算设置</a>
+            </div>
+            <div class="budget-kpis">
+              <div><span>当前月预算</span><strong id="budgetMonthTotal">¥0</strong></div>
+              <div><span>本月已支出</span><strong class="expense" id="budgetMonthExpense">¥0</strong></div>
+              <div><span>剩余金额</span><strong id="budgetMonthRemaining">¥0</strong></div>
             </div>
             <div class="budget-bar">
               <span id="budgetProgress"></span>
             </div>
             <p id="budgetText" class="budget-text">设置月预算后，会显示本月支出进度。</p>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Category</p>
+                <h2>分类预算</h2>
+              </div>
+            </div>
+            <div id="categoryBudgetList" class="category-budget-list"></div>
+          </article>
+        </section>
+      </section>
+
+      <section class="app-view" id="analysisBudgetSettingsView" hidden>
+        <header class="mobile-page-header">
+          <a class="header-back" href="#analysis/budget">‹ 返回</a>
+          <h1>预算设置</h1>
+          <span aria-hidden="true"></span>
+        </header>
+        <section class="analysis-month-switcher">
+          <button id="analysisSettingsPrev" type="button" aria-label="上个月">‹</button>
+          <strong id="analysisSettingsRange">本月</strong>
+          <button id="analysisSettingsNext" type="button" aria-label="下个月">›</button>
+        </section>
+        <section class="panel budget-settings-panel">
+          <label>
+            月总预算
+            <input id="budget" type="number" min="0" step="1000" placeholder="设置月总预算" />
+          </label>
+          <div>
+            <div>
+              <p class="eyebrow">Category</p>
+              <h2>分类预算</h2>
+            </div>
+            <div id="categoryBudgetSettings" class="category-budget-settings"></div>
           </div>
         </section>
+      </section>
 
+      <section class="app-view" id="historyListView" hidden>
+        <section class="section-tabs-wrap">
+          <div>
+            <p class="eyebrow">History</p>
+            <h2>履历</h2>
+          </div>
+          <nav class="section-tabs" aria-label="履历视图">
+            <a href="#history/list" class="is-active">一览</a>
+            <a href="#history/calendar">日历</a>
+          </nav>
+        </section>
         <section class="panel month-list-panel">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Month</p>
-              <h2>月度明细</h2>
+              <p class="eyebrow">History</p>
+              <h2>履历列表</h2>
             </div>
             <div class="filters">
               <select id="monthFilter" aria-label="月份筛选"></select>
@@ -212,33 +597,37 @@
       </section>
 
       <section class="app-view" id="settingsView" hidden>
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Settings</p>
-              <h2>设置</h2>
+        <header class="mobile-page-header">
+          <span aria-hidden="true"></span>
+          <h1>设置</h1>
+          <span aria-hidden="true"></span>
+        </header>
+        <section class="panel settings-panel">
+          <section class="settings-section">
+            <h3>数据管理</h3>
+            <p class="settings-hint">导入前建议先导出当前备份。</p>
+            <div class="settings-actions">
+              <button class="primary-button" id="exportJson" type="button">导出备份</button>
+              <label class="primary-button file-button">
+                导入备份
+                <input id="importJson" type="file" accept="application/json,.json" />
+              </label>
+              <button class="primary-button danger-button" id="clearAll" type="button">清空全部数据</button>
             </div>
-          </div>
-          <div class="settings-actions">
-            <button class="primary-button" id="exportJson" type="button">导出 JSON 备份</button>
-            <label class="primary-button file-button">
-              导入 JSON 备份
-              <input id="importJson" type="file" accept="application/json" />
-            </label>
-            <button class="primary-button danger-button" id="clearAll" type="button">清空全部数据</button>
-          </div>
-          <p class="budget-text">数据保存在当前浏览器的 localStorage。换设备或清理浏览器数据前，请先导出 JSON 备份。</p>
+          </section>
+          <p class="budget-text">数据保存在当前浏览器的 localStorage。换设备或清理浏览器数据前，请先导出备份。</p>
         </section>
       </section>
     </main>
 
     <nav class="bottom-nav" aria-label="底部导航">
       <a href="#home" data-nav="home"><span>🏠</span>首页</a>
-      <a href="#calendar" data-nav="calendar"><span>📅</span>日历</a>
-      <a id="recordNav" href="#add" data-nav="record"><span>＋</span>记录</a>
-      <a href="#stats" data-nav="stats"><span>📊</span>统计</a>
-      <a href="#settings" data-nav="settings"><span>⚙</span>设置</a>
+      <a id="recordNav" href="#record/input" data-nav="record"><span>＋</span>记录</a>
+      <a href="#history/list" data-nav="history"><span>📋</span>履历</a>
+      <a href="#analysis/summary" data-nav="analysis"><span>📊</span>分析</a>
     </nav>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
     <script src="./app.js"></script>
   </body>
