@@ -9,6 +9,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Ledger" />
+    <link rel="icon" href="./icons/icon-192.png" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -160,6 +161,7 @@
           <nav class="record-subtabs" aria-label="记录方式">
             <a href="#record/input" class="is-active" data-record-tab="input">手输入</a>
             <a href="#record/simple" data-record-tab="simple">简单</a>
+            <a href="#record/receipt" data-record-tab="receipt">拍照记账</a>
           </nav>
 
           <section class="record-card">
@@ -348,11 +350,112 @@
         </section>
       </section>
 
+      <section class="app-view" id="recordReceiptView" hidden>
+        <section class="record-screen receipt-screen">
+          <nav class="record-subtabs" aria-label="记录方式">
+            <a href="#record/input" data-record-tab="input">手输入</a>
+            <a href="#record/simple" data-record-tab="simple">简单</a>
+            <a href="#record/receipt" class="is-active" data-record-tab="receipt">拍照记账</a>
+          </nav>
+
+          <section class="record-card receipt-card">
+            <div id="receiptStartPanel">
+              <div class="receipt-intro">
+                <span class="receipt-intro-icon" aria-hidden="true">▣</span>
+                <h2>识别小票</h2>
+                <p>照片只在当前设备中识别，不会上传或保存到记账数据。</p>
+              </div>
+              <div class="receipt-source-actions">
+                <label class="record-action-button receipt-source-button">
+                  拍摄小票
+                  <input id="receiptCameraInput" type="file" accept="image/*" capture="environment" />
+                </label>
+                <label class="receipt-secondary-button receipt-source-button">
+                  从照片或文件选择
+                  <input id="receiptFileInput" type="file" accept="image/*" />
+                </label>
+              </div>
+              <p class="receipt-privacy-note">支持常见图片格式。大图会先缩放到适合手机识别的尺寸。</p>
+            </div>
+
+            <div id="receiptWorkingPanel" class="receipt-working" hidden>
+              <img id="receiptWorkingPreview" class="receipt-preview" alt="待识别的小票预览" />
+              <div class="receipt-progress-copy">
+                <strong id="receiptProgressTitle">正在准备图片…</strong>
+                <span id="receiptProgressText">0%</span>
+              </div>
+              <div class="receipt-progress-track" aria-hidden="true"><span id="receiptProgressBar"></span></div>
+              <p>首次使用可能需要稍久一点，请保持页面打开。</p>
+              <button class="text-button" id="cancelReceiptOcr" type="button">取消识别</button>
+            </div>
+
+            <div id="receiptConfirmPanel" class="receipt-confirm" hidden>
+              <img id="receiptPreview" class="receipt-preview" alt="小票预览" />
+              <div id="receiptWarning" class="receipt-warning" hidden></div>
+
+              <label>
+                商户/店铺（可选）
+                <input id="receiptMerchant" type="text" maxlength="80" placeholder="未识别，可手动输入" />
+              </label>
+              <label>
+                日期
+                <input id="receiptDate" type="date" />
+              </label>
+              <label>
+                总金额
+                <input id="receiptTotalAmount" type="number" min="1" step="1" inputmode="decimal" placeholder="未识别" />
+              </label>
+              <div class="receipt-category-field">
+                <span class="field-title">建议分类</span>
+                <div class="receipt-category-selects">
+                  <select id="receiptCategory" aria-label="主分类"></select>
+                  <select id="receiptSubcategory" aria-label="小分类"></select>
+                </div>
+                <small id="receiptCategoryReason"></small>
+              </div>
+
+              <section id="receiptSplitSuggestion" class="receipt-result-section" hidden>
+                <div class="receipt-section-head">
+                  <div><h3>拆账建议</h3><p>按财务分类汇总，不按商品逐条拆分。</p></div>
+                  <label class="receipt-switch"><input id="useReceiptSplits" type="checkbox" /> 使用</label>
+                </div>
+                <div id="receiptSplitRows"></div>
+                <div class="receipt-match-summary">
+                  <span>商品识别金额 <strong id="receiptItemsTotal">¥0</strong></span>
+                  <span>实际支付金额 <strong id="receiptPaymentTotal">¥0</strong></span>
+                  <span>差额 <strong id="receiptDifference">¥0</strong></span>
+                </div>
+              </section>
+
+              <section class="receipt-result-section">
+                <div class="receipt-section-head">
+                  <div><h3>识别商品</h3><p>可修改、删除，也可继续添加。</p></div>
+                  <button class="text-button" id="addReceiptItem" type="button">＋ 添加</button>
+                </div>
+                <div id="receiptItems" class="receipt-items"></div>
+              </section>
+
+              <details class="receipt-raw-text">
+                <summary>查看原始识别文字</summary>
+                <textarea id="receiptRawText" readonly></textarea>
+              </details>
+
+              <div class="receipt-confirm-actions">
+                <button class="record-action-button" id="useReceiptResult" type="button">使用此结果记账</button>
+                <button class="receipt-secondary-button" id="retryReceipt" type="button">重新选择图片</button>
+                <button class="text-button" id="receiptManualFallback" type="button">改为手动记账</button>
+              </div>
+            </div>
+          </section>
+        </section>
+      </section>
+
       <section class="app-view" id="recordSimpleView" hidden>
         <section class="record-screen">
           <nav class="record-subtabs" aria-label="记录方式">
             <a href="#record/input" data-record-tab="input">手输入</a>
             <a href="#record/simple" class="is-active" data-record-tab="simple">简单</a>
+            <a href="#record/receipt" data-record-tab="receipt">拍照记账</a>
           </nav>
 
           <section class="record-card simple-record-card">
@@ -699,6 +802,7 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+    <script src="./vendor/tesseract/tesseract.min.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

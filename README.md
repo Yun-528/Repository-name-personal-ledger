@@ -18,6 +18,7 @@
 - 首页 dashboard
 - 收入 / 支出记录
 - 计算器式输入
+- 本地小票 OCR 辅助录入
 - 分类 / 子分类管理
 - 图标自定义
 - 履历列表
@@ -99,7 +100,7 @@ Android：
 当前 service worker 缓存名：
 
 ```text
-personal-ledger-cache-v1
+personal-ledger-cache-v7
 ```
 
 如果以后修改 `app.js`、`styles.css`、`index.html`、`manifest.json`、图标等核心静态文件，建议同步修改 `service-worker.js` 里的缓存名，例如：
@@ -122,7 +123,8 @@ personal-ledger-cache-v2
 - 没有后端。
 - 没有云同步。
 - 没有银行联动。
-- 没有 OCR。
+- OCR 在浏览器本地运行，原始小票不会上传，也不会写入 localStorage。
+- 首次使用 OCR 需要加载项目内置的日语模型；使用过一次后，相关资源会由 PWA 缓存。
 - 数据只保存在当前浏览器。
 - localStorage 容量有限，头像和背景图不宜过大。
 

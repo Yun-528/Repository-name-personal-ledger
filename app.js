@@ -7,6 +7,9 @@ const ADD_CATEGORY_VALUE = "__add_category__";
 const ADD_SUBCATEGORY_VALUE = "__add_subcategory__";
 const DEFAULT_SIMPLE_CATEGORY = "其他";
 const DEFAULT_CATEGORY_ICON = "📁";
+const RECEIPT_MAX_FILE_BYTES = 30 * 1024 * 1024;
+const RECEIPT_MAX_DIMENSION = 1800;
+const RECEIPT_JPEG_QUALITY = 0.86;
 const ICON_CHOICES = [
   "🏠",
   "🛋️",
@@ -126,8 +129,12 @@ const state = {
   editingSplits: [],
   splitEditor: { context: "draft", returnHash: "#record/detail", preserveEditDraft: false, originalSplits: [] },
   editFormDraft: null,
+  receiptDraft: createEmptyReceiptDraft(),
 };
 state.recordDraft = state.recordInput;
+
+let receiptOcrWorker = null;
+let receiptOcrRun = 0;
 
 const form = document.querySelector("#entryForm");
 const typeInputs = document.querySelectorAll("input[name='type']");
@@ -271,6 +278,36 @@ const analysisCategoryCenter = document.querySelector("#analysisCategoryCenter")
 const analysisCategoryTotalName = document.querySelector("#analysisCategoryTotalName");
 const analysisCategoryTotalAmount = document.querySelector("#analysisCategoryTotalAmount");
 const analysisSubcategoryList = document.querySelector("#analysisSubcategoryList");
+const receiptStartPanel = document.querySelector("#receiptStartPanel");
+const receiptWorkingPanel = document.querySelector("#receiptWorkingPanel");
+const receiptConfirmPanel = document.querySelector("#receiptConfirmPanel");
+const receiptCameraInput = document.querySelector("#receiptCameraInput");
+const receiptFileInput = document.querySelector("#receiptFileInput");
+const receiptWorkingPreview = document.querySelector("#receiptWorkingPreview");
+const receiptPreview = document.querySelector("#receiptPreview");
+const receiptProgressTitle = document.querySelector("#receiptProgressTitle");
+const receiptProgressText = document.querySelector("#receiptProgressText");
+const receiptProgressBar = document.querySelector("#receiptProgressBar");
+const cancelReceiptOcr = document.querySelector("#cancelReceiptOcr");
+const receiptWarning = document.querySelector("#receiptWarning");
+const receiptMerchant = document.querySelector("#receiptMerchant");
+const receiptDate = document.querySelector("#receiptDate");
+const receiptTotalAmount = document.querySelector("#receiptTotalAmount");
+const receiptCategory = document.querySelector("#receiptCategory");
+const receiptSubcategory = document.querySelector("#receiptSubcategory");
+const receiptCategoryReason = document.querySelector("#receiptCategoryReason");
+const receiptSplitSuggestion = document.querySelector("#receiptSplitSuggestion");
+const receiptSplitRows = document.querySelector("#receiptSplitRows");
+const useReceiptSplits = document.querySelector("#useReceiptSplits");
+const receiptItemsTotal = document.querySelector("#receiptItemsTotal");
+const receiptPaymentTotal = document.querySelector("#receiptPaymentTotal");
+const receiptDifference = document.querySelector("#receiptDifference");
+const receiptItems = document.querySelector("#receiptItems");
+const addReceiptItem = document.querySelector("#addReceiptItem");
+const receiptRawText = document.querySelector("#receiptRawText");
+const useReceiptResult = document.querySelector("#useReceiptResult");
+const retryReceipt = document.querySelector("#retryReceipt");
+const receiptManualFallback = document.querySelector("#receiptManualFallback");
 
 dateInput.value = state.selectedDate;
 inputRecordDate.value = state.selectedDate;
@@ -406,6 +443,21 @@ addSplitRow.addEventListener("click", appendSplitRow);
 completeSplits.addEventListener("click", completeSplitEditor);
 clearSplits.addEventListener("click", clearSplitEditor);
 backFromRecordSplit.addEventListener("click", cancelSplitEditor);
+receiptCameraInput.addEventListener("change", handleReceiptFileInput);
+receiptFileInput.addEventListener("change", handleReceiptFileInput);
+cancelReceiptOcr.addEventListener("click", cancelReceiptRecognition);
+retryReceipt.addEventListener("click", resetReceiptCapture);
+receiptManualFallback.addEventListener("click", useReceiptManualFallback);
+useReceiptResult.addEventListener("click", applyReceiptResult);
+receiptMerchant.addEventListener("input", syncReceiptConfirmation);
+receiptDate.addEventListener("change", syncReceiptConfirmation);
+receiptTotalAmount.addEventListener("input", syncReceiptConfirmation);
+receiptCategory.addEventListener("change", handleReceiptCategoryChange);
+receiptSubcategory.addEventListener("change", syncReceiptConfirmation);
+useReceiptSplits.addEventListener("change", syncReceiptConfirmation);
+receiptItems.addEventListener("input", handleReceiptItemChange);
+receiptItems.addEventListener("click", handleReceiptItemClick);
+addReceiptItem.addEventListener("click", appendReceiptItem);
 editSplits.addEventListener("click", () => openSplitEditor("edit", `#edit/${state.editingId || ""}`));
 removeEditSplits.addEventListener("click", () => {
   state.editingSplits = [];
@@ -734,7 +786,7 @@ function parseRoute() {
   if (section === "edit") return { section: "edit", param: mode };
 
   if (section === "record") {
-    const recordMode = ["input", "simple", "category", "subcategory", "detail", "split"].includes(mode) ? mode : "input";
+    const recordMode = ["input", "simple", "receipt", "category", "subcategory", "detail", "split"].includes(mode) ? mode : "input";
     return { section: "record", mode: recordMode, param, action, extra };
   }
 
@@ -793,6 +845,7 @@ function renderRoute() {
   renderRecordCategory();
   renderRecordSubcategory(route.param);
   renderRecordSplit();
+  renderRecordReceipt();
   renderCategorySettings();
   renderSubcategorySettings(route.param);
   renderRecordDetail();
@@ -811,6 +864,7 @@ function viewForRoute(route) {
   if (route.section === "record" && route.mode === "subcategory") return "recordSubcategoryView";
   if (route.section === "record" && route.mode === "detail") return "recordDetailView";
   if (route.section === "record" && route.mode === "split") return "recordSplitView";
+  if (route.section === "record" && route.mode === "receipt") return "recordReceiptView";
   if (route.section === "record" && route.mode === "simple") return "recordSimpleView";
   if (route.section === "record") return "recordInputView";
   if (route.section === "history" && route.mode === "calendar") return "calendarView";
@@ -1074,6 +1128,604 @@ function renderRecordDetail() {
   recordDetailSplitStatus.textContent = splits.length ? `已拆分 ${splits.length} 项 ›` : "拆分这笔消费 ›";
   recordDetailSplits.hidden = !splits.length;
   recordDetailSplits.innerHTML = splits.length ? renderSplitSummaryRows(splits, state.recordDraft.type) : "";
+}
+
+function createEmptyReceiptDraft() {
+  return {
+    merchant: "",
+    date: todayISO(),
+    detectedDate: "",
+    totalAmount: null,
+    items: [],
+    rawText: "",
+    category: "",
+    subcategory: "",
+    categoryReason: "",
+    categoryCandidates: [],
+    suggestedSplits: [],
+    useSuggestedSplits: false,
+    warning: "",
+    status: "start",
+    imageUrl: "",
+  };
+}
+
+function renderRecordReceipt() {
+  if (!receiptStartPanel) return;
+  const draft = state.receiptDraft;
+  receiptStartPanel.hidden = draft.status !== "start";
+  receiptWorkingPanel.hidden = draft.status !== "working";
+  receiptConfirmPanel.hidden = draft.status !== "confirm";
+  if (draft.status === "confirm") renderReceiptConfirmation();
+}
+
+async function handleReceiptFileInput(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    alert("请选择图片文件");
+    return;
+  }
+  if (file.size > RECEIPT_MAX_FILE_BYTES) {
+    alert("图片过大，请选择 30MB 以下图片，或先在相册中裁剪小票区域。");
+    return;
+  }
+  if (!window.Tesseract || !window.Worker || !document.createElement("canvas").getContext) {
+    state.receiptDraft = createEmptyReceiptDraft();
+    state.receiptDraft.status = "confirm";
+    state.receiptDraft.warning = "当前浏览器不支持本地小票识别，请改为手动输入。";
+    renderRecordReceipt();
+    return;
+  }
+
+  await cancelReceiptRecognition(true);
+  releaseReceiptImage();
+  state.receiptDraft = createEmptyReceiptDraft();
+  state.receiptDraft.status = "working";
+  renderRecordReceipt();
+  updateReceiptProgress("正在准备图片…", 0.03);
+
+  const runId = ++receiptOcrRun;
+  let worker = null;
+  try {
+    const compressed = await compressReceiptImage(file);
+    if (runId !== receiptOcrRun) return;
+    const imageUrl = URL.createObjectURL(compressed);
+    state.receiptDraft.imageUrl = imageUrl;
+    receiptWorkingPreview.src = imageUrl;
+    receiptPreview.src = imageUrl;
+    updateReceiptProgress("正在加载本地识别模型…", 0.08);
+
+    worker = await window.Tesseract.createWorker("jpn", 1, {
+      workerPath: new URL("./vendor/tesseract/worker.min.js", document.baseURI).href,
+      corePath: new URL("./vendor/tesseract/core", document.baseURI).href,
+      langPath: new URL("./vendor/tesseract/lang", document.baseURI).href,
+      logger: (message) => {
+        if (runId !== receiptOcrRun) return;
+        const statusMap = {
+          "loading tesseract core": "正在加载识别引擎…",
+          "initializing tesseract": "正在初始化识别引擎…",
+          "loading language traineddata": "正在加载日语模型…",
+          "initializing api": "正在准备文字识别…",
+          "recognizing text": "正在识别小票…",
+        };
+        updateReceiptProgress(statusMap[message.status] || "正在识别小票…", Number(message.progress) || 0);
+      },
+    });
+    if (runId !== receiptOcrRun) return;
+    receiptOcrWorker = worker;
+    const result = await worker.recognize(compressed);
+    if (runId !== receiptOcrRun) return;
+    const rawText = normalizeReceiptText(result?.data?.text || "").trim();
+    const parsed = parseReceiptText(rawText);
+    state.receiptDraft = {
+      ...createEmptyReceiptDraft(),
+      ...parsed,
+      rawText,
+      status: "confirm",
+      imageUrl,
+      warning: buildReceiptWarning(parsed, rawText),
+    };
+    applyReceiptSuggestions();
+    renderRecordReceipt();
+  } catch (error) {
+    if (runId !== receiptOcrRun) return;
+    console.warn("Receipt OCR failed:", error);
+    const imageUrl = state.receiptDraft.imageUrl;
+    state.receiptDraft = createEmptyReceiptDraft();
+    state.receiptDraft.imageUrl = imageUrl;
+    state.receiptDraft.status = "confirm";
+    state.receiptDraft.warning = "小票识别失败。你仍可手动填写已知内容，然后继续记账。";
+    renderRecordReceipt();
+  } finally {
+    if (worker) {
+      try {
+        await worker.terminate();
+      } catch {
+        // The worker may already have been terminated by a user cancellation.
+      }
+      if (receiptOcrWorker === worker) receiptOcrWorker = null;
+    }
+  }
+}
+
+async function compressReceiptImage(file) {
+  const source = await decodeReceiptImage(file);
+  const scale = Math.min(1, RECEIPT_MAX_DIMENSION / Math.max(source.width, source.height));
+  const width = Math.max(1, Math.round(source.width * scale));
+  const height = Math.max(1, Math.round(source.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { alpha: false });
+  if (!context) throw new Error("Canvas unavailable");
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(source.image, 0, 0, width, height);
+  if (source.close) source.close();
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Image compression failed"))), "image/jpeg", RECEIPT_JPEG_QUALITY);
+  });
+}
+
+async function decodeReceiptImage(file) {
+  if (window.createImageBitmap) {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      return { image: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close() };
+    } catch {
+      // Older Safari versions fall back to the image element path below.
+    }
+  }
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = objectUrl;
+    await image.decode();
+    return { image, width: image.naturalWidth, height: image.naturalHeight, close: null };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function updateReceiptProgress(label, progress) {
+  const normalized = Math.max(0, Math.min(1, Number(progress) || 0));
+  receiptProgressTitle.textContent = label;
+  receiptProgressText.textContent = `${Math.round(normalized * 100)}%`;
+  receiptProgressBar.style.width = `${Math.max(3, normalized * 100)}%`;
+}
+
+async function cancelReceiptRecognition(silent = false) {
+  receiptOcrRun += 1;
+  if (receiptOcrWorker) {
+    try {
+      await receiptOcrWorker.terminate();
+    } catch {
+      // Ignore a worker that has already stopped.
+    }
+    receiptOcrWorker = null;
+  }
+  if (!silent) resetReceiptCapture();
+}
+
+function resetReceiptCapture() {
+  receiptOcrRun += 1;
+  releaseReceiptImage();
+  state.receiptDraft = createEmptyReceiptDraft();
+  receiptWorkingPreview.removeAttribute("src");
+  receiptPreview.removeAttribute("src");
+  renderRecordReceipt();
+}
+
+function releaseReceiptImage() {
+  if (state.receiptDraft?.imageUrl) URL.revokeObjectURL(state.receiptDraft.imageUrl);
+}
+
+function normalizeReceiptText(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+function parseReceiptText(rawText) {
+  const lines = rawText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const detectedDate = findReceiptDate(lines);
+  const totalAmount = findReceiptTotal(lines);
+  const items = findReceiptItems(lines).filter((item) => !totalAmount || item.amount <= totalAmount);
+  return {
+    merchant: cleanReceiptMerchant(findReceiptMerchant(lines)),
+    date: detectedDate || todayISO(),
+    detectedDate,
+    totalAmount,
+    items,
+  };
+}
+
+function findReceiptDate(lines) {
+  for (const line of lines) {
+    const normalized = line.replace(/\s/g, "").replace(/[年月]/g, "/").replace(/日/g, "").replace(/-/g, "/");
+    const match = normalized.match(/(?:^|\D)(\d{2,4})\/(\d{1,2})\/(\d{1,2})(?:\D|$)/);
+    if (!match) continue;
+    let year = Number(match[1]);
+    if (year < 100) year += 2000;
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) continue;
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+  return "";
+}
+
+function findReceiptTotal(lines) {
+  const labels = [
+    { pattern: /総合計/, score: 100 },
+    { pattern: /お買上(?:げ)?計/, score: 96 },
+    { pattern: /現計/, score: 94 },
+    { pattern: /TOTAL/i, score: 92 },
+    { pattern: /合計/, score: 88 },
+  ];
+  const excluded = /小計|税額|消費税|税抜|お預|預り|お釣|釣銭|ポイント|クーポン|割引/;
+  const candidates = [];
+  lines.forEach((line, index) => {
+    const compactLine = line.replace(/\s/g, "");
+    if (excluded.test(compactLine)) return;
+    const label = labels.find((item) => item.pattern.test(compactLine));
+    if (!label) return;
+    const sameLine = extractReceiptAmounts(line);
+    const nextLine = sameLine.length ? [] : extractReceiptAmounts(lines[index + 1] || "");
+    const amounts = sameLine.length ? sameLine : nextLine;
+    amounts.forEach((amount) => {
+      if (amount > 0) candidates.push({ amount, score: label.score + (sameLine.length ? 2 : 0), index });
+    });
+  });
+  candidates.sort((a, b) => b.score - a.score || b.index - a.index);
+  return candidates[0]?.amount ?? null;
+}
+
+function extractReceiptAmounts(line) {
+  if (!line || /\d{2,4}[\/.-]\d{1,2}[\/.-]\d{1,2}|TEL|電話/i.test(line)) return [];
+  const matches = [];
+  const pattern = /(?:[¥￥]\s*)?(\d{1,3}(?:[, ]\d{3})+|\d{1,7})(?:\.(\d{1,2}))?\s*(?:円)?/g;
+  let match;
+  while ((match = pattern.exec(line))) {
+    const integer = match[1].replace(/[ ,]/g, "");
+    const amount = Number(`${integer}${match[2] ? `.${match[2]}` : ""}`);
+    if (Number.isFinite(amount) && amount > 0) matches.push(amount);
+  }
+  return matches;
+}
+
+function findReceiptMerchant(lines) {
+  const topLines = lines.slice(0, 10);
+  const knownMerchants = [...new Set(state.entries.map((entry) => normalizeOptionalText(entry.merchant)).filter(Boolean))].sort(
+    (a, b) => b.length - a.length,
+  );
+  for (const merchant of knownMerchants) {
+    const compactMerchant = merchant.replace(/\s/g, "").toLocaleLowerCase();
+    if (topLines.some((line) => line.replace(/\s/g, "").toLocaleLowerCase().includes(compactMerchant))) return merchant;
+  }
+  return (
+    topLines.find((line) => {
+      if (line.length < 2 || line.length > 60) return false;
+      const compactLine = line.replace(/\s/g, "");
+      if (/レシート|領収|receipt|合計|小計|TEL|電話|〒|http|www\.|\d{2,4}[\/.-]\d{1,2}/i.test(compactLine)) return false;
+      const letters = (line.match(/[\p{L}]/gu) || []).length;
+      return letters >= 2 && letters >= line.length * 0.35;
+    }) || ""
+  );
+}
+
+function cleanReceiptMerchant(value) {
+  const merchant = normalizeOptionalText(value);
+  const japaneseCharacters = (merchant.match(/[\u3040-\u30ff\u3400-\u9fff]/g) || []).length;
+  return japaneseCharacters >= 2 ? merchant.replace(/\s/g, "") : merchant;
+}
+
+function findReceiptItems(lines) {
+  const excluded = /合計|小計|総額|お買上|現計|TOTAL|税|お預|預り|お釣|釣銭|ポイント|クーポン|割引|カード|現金|TEL|電話|〒/i;
+  const items = [];
+  lines.forEach((line) => {
+    const compactLine = line.replace(/\s/g, "");
+    if (
+      excluded.test(compactLine) ||
+      /\d{2,4}(?:[\/.-]|年)\d{1,2}(?:[\/.-]|月)\d{1,2}/.test(compactLine) ||
+      /\d{8,}/.test(compactLine)
+    )
+      return;
+    const amounts = extractReceiptAmounts(line);
+    if (!amounts.length) return;
+    const amount = amounts[amounts.length - 1];
+    const amountPattern = new RegExp(`[¥￥]?\\s*${String(amount).replace(".", "\\.").replace(/\B(?=(\d{3})+(?!\d))/g, "[, ]?")}\\s*(?:円)?\\s*$`);
+    const text = line.replace(amountPattern, "").replace(/[＊*x×]\s*\d+\s*$/i, "").trim();
+    if (!text || !/[\p{L}]/u.test(text)) return;
+    items.push({ text: text.slice(0, 80), amount });
+  });
+  return items.slice(0, 60);
+}
+
+function buildReceiptWarning(parsed, rawText) {
+  const warnings = [];
+  if (!rawText) warnings.push("没有识别到文字，可手动填写后继续。 ");
+  if (!parsed.totalAmount) warnings.push("未可靠识别总金额，请对照小票填写。 ");
+  if (!parsed.detectedDate) warnings.push("未识别日期，当前暂填今天，请确认。 ");
+  return warnings.join("").trim();
+}
+
+function applyReceiptSuggestions() {
+  const draft = state.receiptDraft;
+  const merchantSuggestions = getMerchantCategorySuggestions(draft.merchant);
+  const itemSuggestions = draft.items.map((item) => ({ ...item, match: classifyReceiptItem(item.text) })).filter((item) => item.match);
+  const primary = merchantSuggestions.primary || itemSuggestions.sort((a, b) => b.amount - a.amount)[0]?.match || null;
+  draft.categoryCandidates = merchantSuggestions.candidates;
+  draft.category = primary?.category || "";
+  draft.subcategory = primary?.subcategory || "";
+  draft.categoryReason = merchantSuggestions.primary
+    ? `根据“${draft.merchant}”的历史记录建议`
+    : primary
+      ? "根据识别到的商品关键词建议"
+      : "未找到可靠建议，请手动选择";
+  draft.suggestedSplits = buildReceiptSplitSuggestions(draft.items);
+  draft.useSuggestedSplits = false;
+}
+
+function getMerchantCategorySuggestions(merchant) {
+  const normalizedMerchant = normalizeOptionalText(merchant).toLocaleLowerCase();
+  if (!normalizedMerchant) return { primary: null, candidates: [] };
+  const counts = new Map();
+  state.entries.forEach((entry) => {
+    if (normalizeOptionalText(entry.merchant).toLocaleLowerCase() !== normalizedMerchant) return;
+    const allocations = entry.splits?.length ? entry.splits : [{ category: entry.category, subcategory: entry.subcategory }];
+    const seen = new Set();
+    allocations.forEach((allocation) => {
+      const key = `${allocation.category}\u0000${allocation.subcategory || ""}`;
+      if (!allocation.category || seen.has(key)) return;
+      seen.add(key);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+  });
+  const candidates = [...counts.entries()]
+    .map(([key, count]) => {
+      const [category, subcategory] = key.split("\u0000");
+      return { category, subcategory, count };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+  const total = [...counts.values()].reduce((sum, count) => sum + count, 0);
+  const primary = candidates[0] && (candidates.length === 1 || candidates[0].count / total >= 0.6) ? candidates[0] : null;
+  return { primary, candidates };
+}
+
+function classifyReceiptItem(text) {
+  const compactText = String(text || "").replace(/\s/g, "");
+  const rules = [
+    { keywords: /牛乳|乳飲料|肉|豚|牛肉|鶏|魚|鮮魚|野菜|果物|パン|米|弁当|惣菜|飲料|ジュース|食品|菓子|卵/, names: ["食品", "餐饮", "简餐饮料"] },
+    { keywords: /洗剤|シャンプー|リンス|ティッシュ|トイレット|石鹸|せっけん|歯磨|日用品|スポンジ|ラップ/, names: ["日用消耗品", "购物", "日用品"] },
+    { keywords: /薬|サプリ|ビタ|医薬|マスク|包帯|健康/, names: ["医疗营养", "医疗", "健康"] },
+    { keywords: /本|書籍|ノート|文具|ペン|学習/, names: ["学习用品", "学习"] },
+    { keywords: /電車|バス|タクシー|乗車|運賃|交通/, names: ["交通费", "交通"] },
+    { keywords: /シャツ|衣料|服|靴|ソックス/, names: ["服装", "购物"] },
+  ];
+  const rule = rules.find((item) => item.keywords.test(compactText));
+  if (!rule) return null;
+  const category = findExistingReceiptCategory(rule.names);
+  return category ? { category, subcategory: "" } : null;
+}
+
+function findExistingReceiptCategory(preferredNames) {
+  const categories = Object.keys(categoryTree.expense || {});
+  return (
+    preferredNames.map((name) => categories.find((category) => category === name)).find(Boolean) ||
+    preferredNames.map((name) => categories.find((category) => category.includes(name) || name.includes(category))).find(Boolean) ||
+    ""
+  );
+}
+
+function buildReceiptSplitSuggestions(items) {
+  const grouped = new Map();
+  items.forEach((item) => {
+    const amount = Number(item.amount || 0);
+    const match = classifyReceiptItem(item.text);
+    if (!match || !Number.isFinite(amount) || amount <= 0) return;
+    const key = `${match.category}\u0000${match.subcategory || ""}`;
+    const current = grouped.get(key) || { amount: 0, category: match.category, subcategory: match.subcategory || "" };
+    current.amount += amount;
+    grouped.set(key, current);
+  });
+  return [...grouped.values()].filter((split) => split.amount > 0).sort((a, b) => b.amount - a.amount);
+}
+
+function renderReceiptConfirmation() {
+  const draft = state.receiptDraft;
+  if (draft.imageUrl) {
+    receiptPreview.src = draft.imageUrl;
+    receiptPreview.hidden = false;
+  } else {
+    receiptPreview.hidden = true;
+  }
+  receiptWarning.hidden = !draft.warning;
+  receiptWarning.textContent = draft.warning;
+  receiptMerchant.value = draft.merchant || "";
+  receiptDate.value = draft.date || todayISO();
+  receiptTotalAmount.value = draft.totalAmount || "";
+  receiptRawText.value = draft.rawText || "";
+  updateReceiptCategoryOptions();
+  renderReceiptItemsAndSplits();
+}
+
+function updateReceiptCategoryOptions() {
+  const draft = state.receiptDraft;
+  const categories = Object.keys(categoryTree.expense || {});
+  receiptCategory.innerHTML = `<option value="">请选择主分类</option>${categories
+    .map((category) => `<option value="${escapeHTML(category)}" ${category === draft.category ? "selected" : ""}>${escapeHTML(category)}</option>`)
+    .join("")}`;
+  const subcategories = draft.category ? getCategoryChildren("expense", draft.category) : [];
+  receiptSubcategory.innerHTML = `<option value="">不选择小分类</option>${subcategories
+    .map((subcategory) => `<option value="${escapeHTML(subcategory)}" ${subcategory === draft.subcategory ? "selected" : ""}>${escapeHTML(subcategory)}</option>`)
+    .join("")}`;
+  receiptSubcategory.disabled = !draft.category;
+  receiptCategoryReason.textContent = draft.categoryReason || "";
+}
+
+function renderReceiptItemsAndSplits(renderItems = true) {
+  const draft = state.receiptDraft;
+  if (renderItems) {
+    receiptItems.innerHTML = draft.items.length
+      ? draft.items
+          .map(
+            (item, index) => `<div class="receipt-item" data-receipt-item="${index}">
+              <input data-receipt-item-text="${index}" type="text" maxlength="80" value="${escapeHTML(item.text)}" aria-label="商品 ${index + 1}" />
+              <input data-receipt-item-amount="${index}" type="number" min="0" step="1" inputmode="decimal" value="${item.amount || ""}" aria-label="商品金额 ${index + 1}" placeholder="金额" />
+              <button class="receipt-item-remove" data-remove-receipt-item="${index}" type="button" aria-label="删除商品 ${index + 1}">×</button>
+            </div>`,
+          )
+          .join("")
+      : '<p class="receipt-privacy-note">没有识别到商品明细，可以只使用总金额继续记账。</p>';
+  }
+
+  const splits = draft.suggestedSplits;
+  const itemsTotal = draft.items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const paymentTotal = Number(draft.totalAmount) || 0;
+  const splitTotal = splits.reduce((sum, split) => sum + Number(split.amount || 0), 0);
+  const matches =
+    splits.length >= 2 &&
+    paymentTotal > 0 &&
+    toMinorUnits(itemsTotal) === toMinorUnits(paymentTotal) &&
+    toMinorUnits(splitTotal) === toMinorUnits(paymentTotal);
+  receiptSplitSuggestion.hidden = splits.length < 2;
+  receiptSplitRows.innerHTML = splits
+    .map(
+      (split) => `<div class="receipt-split-row"><span class="record-list-icon">${getCategoryIcon(split.category, "expense")}</span><span>${escapeHTML(
+        split.category,
+      )}</span><strong>${money(split.amount)}</strong></div>`,
+    )
+    .join("");
+  receiptItemsTotal.textContent = money(itemsTotal);
+  receiptPaymentTotal.textContent = money(paymentTotal);
+  receiptDifference.textContent = money(paymentTotal - itemsTotal);
+  receiptDifference.classList.toggle("is-mismatch", toMinorUnits(paymentTotal - itemsTotal) !== 0);
+  useReceiptSplits.disabled = !matches;
+  if (!matches) draft.useSuggestedSplits = false;
+  useReceiptSplits.checked = matches && draft.useSuggestedSplits;
+}
+
+function syncReceiptConfirmation() {
+  const draft = state.receiptDraft;
+  draft.merchant = receiptMerchant.value;
+  draft.date = receiptDate.value;
+  draft.totalAmount = Number(receiptTotalAmount.value) || null;
+  draft.category = receiptCategory.value;
+  draft.subcategory = receiptSubcategory.value;
+  draft.useSuggestedSplits = useReceiptSplits.checked && !useReceiptSplits.disabled;
+  renderReceiptItemsAndSplits();
+}
+
+function handleReceiptCategoryChange() {
+  state.receiptDraft.category = receiptCategory.value;
+  state.receiptDraft.subcategory = "";
+  state.receiptDraft.categoryReason = "已由你选择";
+  updateReceiptCategoryOptions();
+  syncReceiptConfirmation();
+}
+
+function handleReceiptItemChange(event) {
+  const textInput = event.target.closest("[data-receipt-item-text]");
+  const amountInputTarget = event.target.closest("[data-receipt-item-amount]");
+  if (!textInput && !amountInputTarget) return;
+  const index = Number(textInput ? textInput.dataset.receiptItemText : amountInputTarget.dataset.receiptItemAmount);
+  const item = state.receiptDraft.items[index];
+  if (!item) return;
+  if (textInput) item.text = textInput.value;
+  if (amountInputTarget) item.amount = Number(amountInputTarget.value) || 0;
+  state.receiptDraft.suggestedSplits = buildReceiptSplitSuggestions(state.receiptDraft.items);
+  state.receiptDraft.useSuggestedSplits = false;
+  renderReceiptItemsAndSplits(false);
+}
+
+function handleReceiptItemClick(event) {
+  const button = event.target.closest("[data-remove-receipt-item]");
+  if (!button) return;
+  state.receiptDraft.items.splice(Number(button.dataset.removeReceiptItem), 1);
+  state.receiptDraft.suggestedSplits = buildReceiptSplitSuggestions(state.receiptDraft.items);
+  state.receiptDraft.useSuggestedSplits = false;
+  renderReceiptItemsAndSplits();
+}
+
+function appendReceiptItem() {
+  state.receiptDraft.items.push({ text: "", amount: 0 });
+  renderReceiptItemsAndSplits();
+  receiptItems.querySelector(".receipt-item:last-child [data-receipt-item-text]")?.focus();
+}
+
+function applyReceiptResult() {
+  syncReceiptConfirmation();
+  const draft = state.receiptDraft;
+  const amount = Number(draft.totalAmount || 0);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    alert("请确认总金额");
+    receiptTotalAmount.focus();
+    return;
+  }
+  if (!validDate(draft.date)) {
+    alert("请确认日期");
+    receiptDate.focus();
+    return;
+  }
+  if (!draft.category) {
+    alert("请选择主分类");
+    receiptCategory.focus();
+    return;
+  }
+  const splits = draft.useSuggestedSplits ? cloneSplits(draft.suggestedSplits) : [];
+  const splitErrorMessage = getSplitValidationError(splits, "expense", amount, true);
+  if (splitErrorMessage) {
+    alert(splitErrorMessage);
+    return;
+  }
+  Object.assign(state.recordDraft, {
+    type: "expense",
+    expression: formatPlainAmount(amount),
+    amount,
+    category: draft.category,
+    subcategory: draft.subcategory || "",
+    date: draft.date,
+    merchant: normalizeOptionalText(draft.merchant),
+    tags: [],
+    splits,
+    note: "",
+    source: "receipt",
+  });
+  releaseReceiptImage();
+  state.receiptDraft.imageUrl = "";
+  navigateTo("#record/detail");
+}
+
+function useReceiptManualFallback() {
+  const draft = state.receiptDraft;
+  const amount = Number(draft.totalAmount || 0);
+  Object.assign(state.recordDraft, {
+    type: "expense",
+    expression: amount > 0 ? formatPlainAmount(amount) : "",
+    amount: amount > 0 ? amount : 0,
+    category: draft.category || "",
+    subcategory: draft.subcategory || "",
+    date: validDate(draft.date) ? draft.date : todayISO(),
+    merchant: normalizeOptionalText(draft.merchant),
+    tags: [],
+    splits: [],
+    note: "",
+    source: "input",
+  });
+  releaseReceiptImage();
+  state.receiptDraft.imageUrl = "";
+  navigateTo("#record/input");
 }
 
 function prepareCategoryFormRoute(route) {
@@ -1872,6 +2524,7 @@ function renderSplitSummaryRows(splits, type) {
 }
 
 function saveRecordInput() {
+  const wasReceipt = state.recordDraft.source === "receipt";
   const amount = state.recordDraft.amount || calculateAmount(state.recordDraft.expression);
   if (!amount || amount <= 0) {
     alert("请输入金额");
@@ -1920,6 +2573,7 @@ function saveRecordInput() {
     simpleNote.value = "";
   }
   state.recordDraft.source = "input";
+  if (wasReceipt) state.receiptDraft = createEmptyReceiptDraft();
   inputRecordNote.value = "";
   detailRecordMerchant.value = "";
   detailRecordTags.value = "";

@@ -1,9 +1,10 @@
-const CACHE_NAME = "personal-ledger-cache-v6";
+const CACHE_NAME = "personal-ledger-cache-v7";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./vendor/tesseract/tesseract.min.js",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -34,7 +35,19 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) return cachedResponse;
-      return fetch(event.request).catch(() => caches.match("./index.html"));
+      return fetch(event.request)
+        .then((response) => {
+          const url = new URL(event.request.url);
+          if (response.ok && url.origin === self.location.origin && url.pathname.includes("/vendor/tesseract/")) {
+            const copy = response.clone();
+            return caches
+              .open(CACHE_NAME)
+              .then((cache) => cache.put(event.request, copy))
+              .then(() => response);
+          }
+          return response;
+        })
+        .catch(() => caches.match("./index.html"));
     }),
   );
 });
