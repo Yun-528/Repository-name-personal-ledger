@@ -292,10 +292,23 @@
               <span>分类</span>
               <strong class="detail-category-value"><span id="recordDetailIcon" class="record-list-icon">📁</span><span id="recordDetailPath">支出 &gt; 分类 &gt; 小分类</span></strong>
             </button>
+            <button class="detail-row" id="openRecordSplit" type="button">
+              <span>拆账</span>
+              <strong id="recordDetailSplitStatus">拆分这笔消费 ›</strong>
+            </button>
+            <div id="recordDetailSplits" class="detail-split-summary" hidden></div>
             <label class="detail-row detail-date-row">
               <span>日期</span>
               <strong id="detailRecordDateLabel">今天</strong>
               <input id="detailRecordDate" type="date" />
+            </label>
+            <label class="detail-text-field">
+              <span>商户/店铺（可选）</span>
+              <input id="detailRecordMerchant" type="text" maxlength="80" placeholder="例如：松屋、Amazon" />
+            </label>
+            <label class="detail-text-field">
+              <span>标签（可选）</span>
+              <input id="detailRecordTags" type="text" maxlength="160" placeholder="用逗号分隔，例如：学习，电脑" />
             </label>
             <label class="detail-note-field">
               <span>备注</span>
@@ -305,6 +318,33 @@
           <div class="record-detail-savebar">
             <button class="record-action-button" id="detailSaveRecord" type="button">记录</button>
           </div>
+        </section>
+      </section>
+
+      <section class="app-view" id="recordSplitView" hidden>
+        <section class="record-screen">
+          <header class="mobile-page-header">
+            <button class="header-back" id="backFromRecordSplit" type="button">‹ 返回</button>
+            <h1>拆分这笔消费</h1>
+            <span aria-hidden="true"></span>
+          </header>
+          <section class="record-card split-editor-card">
+            <div class="split-total-head">
+              <span>总金额</span>
+              <strong id="splitTransactionTotal">¥0</strong>
+            </div>
+            <div id="splitRows" class="split-rows"></div>
+            <button class="split-add-button" id="addSplitRow" type="button">＋ 添加一项</button>
+            <div class="split-totals" aria-live="polite">
+              <div><span>已分配</span><strong id="splitAllocated">¥0</strong></div>
+              <div><span>剩余</span><strong id="splitRemaining">¥0</strong></div>
+            </div>
+            <p class="split-error" id="splitError" hidden></p>
+            <div class="split-editor-actions">
+              <button class="text-button danger" id="clearSplits" type="button">取消拆账</button>
+              <button class="record-action-button" id="completeSplits" type="button">完成拆账</button>
+            </div>
+          </section>
         </section>
       </section>
 
@@ -330,6 +370,14 @@
               <input id="simpleDate" type="date" />
             </label>
             <label>
+              商户/店铺（可选）
+              <input id="simpleMerchant" type="text" maxlength="80" placeholder="例如：松屋、Amazon" />
+            </label>
+            <label>
+              标签（可选）
+              <input id="simpleTags" type="text" maxlength="160" placeholder="用逗号分隔，例如：学习，电脑" />
+            </label>
+            <label>
               备注
               <input id="simpleNote" type="text" maxlength="80" placeholder="例如：午餐、工资、地铁" />
             </label>
@@ -342,10 +390,11 @@
             <button class="text-button simple-more-category" id="simpleMoreCategory" type="button">分类选择</button>
 
             <label id="simpleSubcategoryField" hidden>
-              小分类
+              小分类（可选）
               <select id="simpleSubcategory"></select>
             </label>
 
+            <button class="text-button split-entry-button" id="simpleOpenSplit" type="button">拆分这笔消费</button>
             <button class="record-action-button" id="simpleSaveRecord" type="button">记录</button>
           </section>
         </section>
@@ -389,8 +438,8 @@
             </div>
             <div class="managed-field">
               <label>
-                小项目
-                <select id="subcategory" name="subcategory" required></select>
+                小分类（可选）
+                <select id="subcategory" name="subcategory"></select>
               </label>
               <div class="manage-actions">
                 <button class="text-button" id="renameSubcategory" type="button">重命名</button>
@@ -405,9 +454,30 @@
           </label>
 
           <label>
+            商户/店铺（可选）
+            <input id="merchant" name="merchant" type="text" maxlength="80" placeholder="例如：松屋、Amazon" />
+          </label>
+
+          <label>
+            标签（可选）
+            <input id="tags" name="tags" type="text" maxlength="160" placeholder="用逗号分隔，例如：学习，电脑" />
+          </label>
+
+          <label>
             备注
             <input id="note" name="note" type="text" maxlength="80" placeholder="例如：午餐、工资、地铁" />
           </label>
+
+          <section class="form-split-section">
+            <div>
+              <strong>拆账</strong>
+              <span id="editSplitStatus">未拆分</span>
+            </div>
+            <div class="form-split-actions">
+              <button class="text-button" id="editSplits" type="button">拆分这笔消费</button>
+              <button class="text-button danger" id="removeEditSplits" type="button" hidden>取消拆账</button>
+            </div>
+          </section>
 
           <button class="primary-button" id="submitEntry" type="submit">添加记录</button>
         </form>

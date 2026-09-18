@@ -109,16 +109,23 @@ const state = {
     amount: 0,
     category: "",
     subcategory: "",
+    merchant: "",
+    tags: [],
+    splits: [],
+    source: "input",
   },
   recordSimple: {
     type: "expense",
     category: DEFAULT_SIMPLE_CATEGORY,
-    subcategory: DEFAULT_SIMPLE_CATEGORY,
+    subcategory: "",
   },
   recordCategoryReturn: "input",
   recordCategoryFocus: "",
   categoryForm: { mode: "new-category", type: "expense", category: "", subcategory: "", icon: DEFAULT_CATEGORY_ICON },
   categoryFormReturnHash: "",
+  editingSplits: [],
+  splitEditor: { context: "draft", returnHash: "#record/detail", preserveEditDraft: false, originalSplits: [] },
+  editFormDraft: null,
 };
 state.recordDraft = state.recordInput;
 
@@ -129,6 +136,8 @@ const categorySelect = document.querySelector("#category");
 const subcategorySelect = document.querySelector("#subcategory");
 const dateInput = document.querySelector("#date");
 const noteInput = document.querySelector("#note");
+const merchantInput = document.querySelector("#merchant");
+const tagsInput = document.querySelector("#tags");
 const entryList = document.querySelector("#entryList");
 const emptyState = document.querySelector("#emptyState");
 const monthFilter = document.querySelector("#monthFilter");
@@ -188,19 +197,39 @@ const recordDetailIcon = document.querySelector("#recordDetailIcon");
 const recordDetailPath = document.querySelector("#recordDetailPath");
 const recordDetailAmount = document.querySelector("#recordDetailAmount");
 const recordDetailCategoryRow = document.querySelector("#recordDetailCategoryRow");
+const openRecordSplit = document.querySelector("#openRecordSplit");
+const recordDetailSplitStatus = document.querySelector("#recordDetailSplitStatus");
+const recordDetailSplits = document.querySelector("#recordDetailSplits");
 const detailRecordDate = document.querySelector("#detailRecordDate");
 const detailRecordDateLabel = document.querySelector("#detailRecordDateLabel");
 const detailRecordNote = document.querySelector("#detailRecordNote");
+const detailRecordMerchant = document.querySelector("#detailRecordMerchant");
+const detailRecordTags = document.querySelector("#detailRecordTags");
 const detailSaveRecord = document.querySelector("#detailSaveRecord");
 const backToRecordSubcategory = document.querySelector("#backToRecordSubcategory");
 const simpleAmount = document.querySelector("#simpleAmount");
 const simpleDate = document.querySelector("#simpleDate");
 const simpleNote = document.querySelector("#simpleNote");
+const simpleMerchant = document.querySelector("#simpleMerchant");
+const simpleTags = document.querySelector("#simpleTags");
 const simpleCategoryPills = document.querySelector("#simpleCategoryPills");
 const simpleSubcategoryField = document.querySelector("#simpleSubcategoryField");
 const simpleSubcategory = document.querySelector("#simpleSubcategory");
 const simpleMoreCategory = document.querySelector("#simpleMoreCategory");
 const simpleSaveRecord = document.querySelector("#simpleSaveRecord");
+const simpleOpenSplit = document.querySelector("#simpleOpenSplit");
+const splitTransactionTotal = document.querySelector("#splitTransactionTotal");
+const splitRows = document.querySelector("#splitRows");
+const addSplitRow = document.querySelector("#addSplitRow");
+const splitAllocated = document.querySelector("#splitAllocated");
+const splitRemaining = document.querySelector("#splitRemaining");
+const splitError = document.querySelector("#splitError");
+const completeSplits = document.querySelector("#completeSplits");
+const clearSplits = document.querySelector("#clearSplits");
+const backFromRecordSplit = document.querySelector("#backFromRecordSplit");
+const editSplits = document.querySelector("#editSplits");
+const removeEditSplits = document.querySelector("#removeEditSplits");
+const editSplitStatus = document.querySelector("#editSplitStatus");
 const toast = document.querySelector("#toast");
 const summaryDonut = document.querySelector("#summaryDonut");
 const homeDonut = document.querySelector("#homeDonut");
@@ -338,6 +367,7 @@ backFromCategoryForm.addEventListener("click", () => {
   navigateTo("#record/category");
 });
 detailSaveRecord.addEventListener("click", saveRecordInput);
+openRecordSplit.addEventListener("click", () => openSplitEditor("draft", "#record/detail"));
 recordDetailCategoryRow.addEventListener("click", () => {
   state.recordDraft.category = "";
   state.recordDraft.subcategory = "";
@@ -347,18 +377,40 @@ detailRecordDate.addEventListener("change", () => {
   state.recordDraft.date = detailRecordDate.value;
   renderRecordDetail();
 });
+detailRecordMerchant.addEventListener("input", () => {
+  state.recordDraft.merchant = detailRecordMerchant.value;
+});
+detailRecordTags.addEventListener("input", () => {
+  state.recordDraft.tags = normalizeTags(detailRecordTags.value);
+});
+detailRecordNote.addEventListener("input", () => {
+  state.recordDraft.note = detailRecordNote.value;
+});
 backToRecordSubcategory.addEventListener("click", () =>
   navigateTo(`#record/subcategory/${encodeURIComponent(state.recordDraft.category || "")}`),
 );
 simpleCategoryPills.addEventListener("click", handleSimpleCategoryPick);
 simpleSubcategory.addEventListener("change", () => {
-  state.recordSimple.subcategory = simpleSubcategory.value || state.recordSimple.category;
+  state.recordSimple.subcategory = simpleSubcategory.value;
 });
 simpleMoreCategory.addEventListener("click", () => {
   state.recordCategoryReturn = "simple";
   navigateTo("#record/category");
 });
 simpleSaveRecord.addEventListener("click", saveRecordSimple);
+simpleOpenSplit.addEventListener("click", openSimpleSplitEditor);
+splitRows.addEventListener("input", handleSplitEditorChange);
+splitRows.addEventListener("change", handleSplitEditorChange);
+splitRows.addEventListener("click", handleSplitEditorClick);
+addSplitRow.addEventListener("click", appendSplitRow);
+completeSplits.addEventListener("click", completeSplitEditor);
+clearSplits.addEventListener("click", clearSplitEditor);
+backFromRecordSplit.addEventListener("click", cancelSplitEditor);
+editSplits.addEventListener("click", () => openSplitEditor("edit", `#edit/${state.editingId || ""}`));
+removeEditSplits.addEventListener("click", () => {
+  state.editingSplits = [];
+  renderEditSplitStatus();
+});
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -366,6 +418,11 @@ form.addEventListener("submit", (event) => {
   const amount = Number(data.get("amount"));
 
   if (!Number.isFinite(amount) || amount <= 0) return;
+  const splitErrorMessage = getSplitValidationError(state.editingSplits, data.get("type"), amount, false);
+  if (splitErrorMessage) {
+    alert(splitErrorMessage);
+    return;
+  }
 
   const record = saveEntryFromData({
     type: data.get("type"),
@@ -373,6 +430,9 @@ form.addEventListener("submit", (event) => {
     category: data.get("category"),
     subcategory: data.get("subcategory"),
     date: data.get("date"),
+    merchant: data.get("merchant"),
+    tags: data.get("tags"),
+    splits: state.editingSplits,
     note: data.get("note").trim(),
   });
 
@@ -520,7 +580,7 @@ document.querySelector("#importJson").addEventListener("change", async (event) =
 
 function buildBackupPayload() {
   return {
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     entries: state.entries.map(normalizeEntry),
     monthlyBudget: Number(localStorage.getItem(BUDGET_KEY) || state.budget || 0),
@@ -674,7 +734,7 @@ function parseRoute() {
   if (section === "edit") return { section: "edit", param: mode };
 
   if (section === "record") {
-    const recordMode = ["input", "simple", "category", "subcategory", "detail"].includes(mode) ? mode : "input";
+    const recordMode = ["input", "simple", "category", "subcategory", "detail", "split"].includes(mode) ? mode : "input";
     return { section: "record", mode: recordMode, param, action, extra };
   }
 
@@ -732,6 +792,7 @@ function renderRoute() {
   renderRecordSimple();
   renderRecordCategory();
   renderRecordSubcategory(route.param);
+  renderRecordSplit();
   renderCategorySettings();
   renderSubcategorySettings(route.param);
   renderRecordDetail();
@@ -749,6 +810,7 @@ function viewForRoute(route) {
   if (route.section === "record" && route.mode === "category") return "recordCategoryView";
   if (route.section === "record" && route.mode === "subcategory") return "recordSubcategoryView";
   if (route.section === "record" && route.mode === "detail") return "recordDetailView";
+  if (route.section === "record" && route.mode === "split") return "recordSplitView";
   if (route.section === "record" && route.mode === "simple") return "recordSimpleView";
   if (route.section === "record") return "recordInputView";
   if (route.section === "history" && route.mode === "calendar") return "calendarView";
@@ -797,8 +859,11 @@ function saveEntryFromData(data) {
       type: data.type,
       amount: Number(data.amount),
       category: cleanName(data.category),
-      subcategory: cleanName(data.subcategory) || cleanName(data.category),
+      subcategory: cleanName(data.subcategory),
       date: data.date,
+      merchant: normalizeOptionalText(data.merchant),
+      tags: normalizeTags(data.tags),
+      splits: Array.isArray(data.splits) ? data.splits : existing?.splits || [],
       note: (data.note || "").trim(),
       createdAt: existing?.createdAt,
     },
@@ -825,7 +890,7 @@ function renderRecordInput() {
   const display = state.recordDraft.expression || (state.recordDraft.amount ? String(state.recordDraft.amount) : "");
   calculatorExpression.textContent = display ? `¥${display}` : "¥0";
   inputSelectedCategory.textContent = state.recordDraft.category
-    ? `分类：${state.recordDraft.category} / ${state.recordDraft.subcategory || state.recordDraft.category}`
+    ? `分类：${state.recordDraft.category}${state.recordDraft.subcategory ? ` / ${state.recordDraft.subcategory}` : ""}`
     : "未选择分类";
   calculatorNext.textContent = "下一步";
   if (!inputRecordDate.value) inputRecordDate.value = state.selectedDate || todayISO();
@@ -850,9 +915,9 @@ function renderRecordCategory() {
                       item.subcategory,
                     )}" type="button">
                       <span class="record-list-icon">${getSubcategoryIcon(item.category, item.subcategory, type)}</span>
-                      <span><strong>${escapeHTML(item.category)}</strong><small>${escapeHTML(item.category)} > ${escapeHTML(
-                        item.subcategory,
-                      )}</small></span>
+                      <span><strong>${escapeHTML(item.category)}</strong><small>${escapeHTML(item.category)}${
+                        item.subcategory ? ` &gt; ${escapeHTML(item.subcategory)}` : ""
+                      }</small></span>
                       <b>›</b>
                     </button>
                   `,
@@ -896,7 +961,13 @@ function renderRecordSubcategory(routeCategory) {
 
   recordSubcategoryTitle.textContent = category || "选择子分类";
   const subcategoryRows = subcategories.length
-    ? subcategories
+    ? `<button class="record-list-row ${state.recordDraft.subcategory ? "" : "is-selected"}" data-record-no-subcategory="${escapeHTML(
+        category,
+      )}" type="button">
+          <span class="record-list-icon">${getCategoryIcon(category, type)}</span>
+          <span><strong>不选择小分类</strong><small>仅使用${escapeHTML(category)}分类</small></span>
+          <b>›</b>
+        </button>` + subcategories
         .map(
           (subcategory) =>
             `<button class="record-list-row ${state.recordDraft.subcategory === subcategory ? "is-selected" : ""}" data-record-subcategory-choice="${escapeHTML(
@@ -908,7 +979,11 @@ function renderRecordSubcategory(routeCategory) {
             </button>`,
         )
         .join("")
-    : '<p class="empty-state is-visible">暂无子分类</p>';
+    : `<button class="record-list-row is-selected" data-record-no-subcategory="${escapeHTML(category)}" type="button">
+        <span class="record-list-icon">${getCategoryIcon(category, type)}</span>
+        <span><strong>使用${escapeHTML(category)}</strong><small>无需选择小分类</small></span>
+        <b>›</b>
+      </button>`;
 
   recordSubcategoryOptions.innerHTML = subcategoryRows + `
       <button class="category-settings-link" data-add-subcategory-direct="${escapeHTML(category)}" type="button">
@@ -988,13 +1063,17 @@ function renderRecordDetail() {
   const date = state.recordDraft.date || detailRecordDate.value || inputRecordDate.value || state.selectedDate || todayISO();
   recordDetailTitle.textContent = state.recordDraft.type === "income" ? "收入详情" : "支出详情";
   recordDetailIcon.textContent = getSubcategoryIcon(state.recordDraft.category, state.recordDraft.subcategory, state.recordDraft.type);
-  recordDetailPath.textContent = `${typeLabel} > ${state.recordDraft.category || "未选择"} > ${
-    state.recordDraft.subcategory || state.recordDraft.category || "未选择"
-  }`;
+  recordDetailPath.textContent = [typeLabel, state.recordDraft.category || "未选择", state.recordDraft.subcategory].filter(Boolean).join(" > ");
   recordDetailAmount.textContent = money(state.recordDraft.amount || calculateAmount(state.recordDraft.expression) || 0);
   detailRecordDate.value = date;
   detailRecordDateLabel.textContent = formatDateWithWeekday(date);
-  if (!detailRecordNote.value) detailRecordNote.value = state.recordDraft.note || inputRecordNote.value || "";
+  detailRecordMerchant.value = state.recordDraft.merchant || "";
+  detailRecordTags.value = formatTagsInput(state.recordDraft.tags);
+  detailRecordNote.value = state.recordDraft.note || inputRecordNote.value || "";
+  const splits = state.recordDraft.splits || [];
+  recordDetailSplitStatus.textContent = splits.length ? `已拆分 ${splits.length} 项 ›` : "拆分这笔消费 ›";
+  recordDetailSplits.hidden = !splits.length;
+  recordDetailSplits.innerHTML = splits.length ? renderSplitSummaryRows(splits, state.recordDraft.type) : "";
 }
 
 function prepareCategoryFormRoute(route) {
@@ -1155,13 +1234,17 @@ function deleteSubcategoryFromTreePreservingEntries(type, category, subcategory)
 
 function hasEntriesForCategory(categoryName) {
   const category = cleanName(categoryName);
-  return state.entries.some((entry) => entry.category === category);
+  return state.entries.some((entry) => entry.category === category || (entry.splits || []).some((split) => split.category === category));
 }
 
 function hasEntriesForSubcategory(categoryName, subcategoryName) {
   const category = cleanName(categoryName);
   const subcategory = cleanName(subcategoryName);
-  return state.entries.some((entry) => entry.category === category && entry.subcategory === subcategory);
+  return state.entries.some(
+    (entry) =>
+      (entry.category === category && entry.subcategory === subcategory) ||
+      (entry.splits || []).some((split) => split.category === category && split.subcategory === subcategory),
+  );
 }
 
 function renderRecordSimple() {
@@ -1181,12 +1264,13 @@ function renderRecordSimple() {
   const subcategories = getCategoryChildren(state.recordSimple.type, state.recordSimple.category);
   simpleSubcategoryField.hidden = !subcategories.length;
   if (subcategories.length) {
-    if (!subcategories.includes(state.recordSimple.subcategory)) state.recordSimple.subcategory = subcategories[0];
-    simpleSubcategory.innerHTML = subcategories
+    if (!subcategories.includes(state.recordSimple.subcategory)) state.recordSimple.subcategory = "";
+    simpleSubcategory.innerHTML = `<option value="" ${state.recordSimple.subcategory ? "" : "selected"}>不选择小分类</option>` + subcategories
       .map((name) => `<option value="${name}" ${name === state.recordSimple.subcategory ? "selected" : ""}>${name}</option>`)
       .join("");
   } else {
-    state.recordSimple.subcategory = state.recordSimple.category;
+    state.recordSimple.subcategory = "";
+    simpleSubcategory.innerHTML = "";
   }
 
   if (!simpleDate.value) simpleDate.value = state.selectedDate || todayISO();
@@ -1194,24 +1278,23 @@ function renderRecordSimple() {
 
 function setRecordInputType(type) {
   state.recordDraft.type = type === "income" ? "income" : "expense";
+  state.recordDraft.source = "input";
   state.recordDraft.category = "";
   state.recordDraft.subcategory = "";
+  state.recordDraft.splits = [];
   state.recordCategoryFocus = "";
   renderRecordInput();
 }
 
 function setSimpleType(type) {
   state.recordSimple.type = type === "income" ? "income" : "expense";
-  if (categoryTree[state.recordSimple.type]?.[state.recordSimple.category]) {
-    state.recordSimple.subcategory = getCategoryChildren(state.recordSimple.type, state.recordSimple.category)[0] || state.recordSimple.category;
-  } else {
-    state.recordSimple.subcategory = state.recordSimple.category;
-  }
+  state.recordSimple.subcategory = "";
   state.recordCategoryFocus = "";
   renderRecordSimple();
 }
 
 function pushCalculatorKey(key) {
+  state.recordInput.source = "input";
   const expression = state.recordInput.expression;
   const last = expression.slice(-1);
   const operators = ["+", "-", "×", "÷"];
@@ -1228,17 +1311,20 @@ function pushCalculatorKey(key) {
   }
 
   state.recordInput.amount = 0;
+  state.recordInput.splits = [];
   renderRecordInput();
 }
 
 function deleteCalculatorKey() {
+  state.recordInput.source = "input";
   state.recordInput.expression = state.recordInput.expression.slice(0, -1);
   state.recordInput.amount = 0;
+  state.recordInput.splits = [];
   renderRecordInput();
 }
 
 function advanceRecordInput() {
-  if (state.recordDraft.amount > 0 && state.recordDraft.category && state.recordDraft.subcategory) {
+  if (state.recordDraft.amount > 0 && state.recordDraft.category) {
     navigateTo("#record/detail");
     return;
   }
@@ -1259,10 +1345,6 @@ function advanceRecordInput() {
   if (!state.recordDraft.category) {
     state.recordCategoryReturn = "input";
     navigateTo("#record/category");
-    return;
-  }
-  if (!state.recordDraft.subcategory) {
-    navigateTo(`#record/subcategory/${encodeURIComponent(state.recordDraft.category)}`);
     return;
   }
   navigateTo("#record/detail");
@@ -1300,19 +1382,26 @@ function handleRecordSubcategoryPick(event) {
     return;
   }
 
+  const noSubcategoryButton = event.target.closest("[data-record-no-subcategory]");
+  if (noSubcategoryButton) {
+    state.recordDraft.category = noSubcategoryButton.dataset.recordNoSubcategory || state.recordDraft.category;
+    state.recordDraft.subcategory = "";
+    navigateTo("#record/detail");
+    return;
+  }
+
   const button = event.target.closest("[data-record-subcategory-choice]");
   if (!button) return;
 
   state.recordDraft.category = button.dataset.recordCategoryChoice || state.recordDraft.category;
-  state.recordDraft.subcategory = button.dataset.recordSubcategoryChoice || state.recordDraft.category;
+  state.recordDraft.subcategory = button.dataset.recordSubcategoryChoice || "";
   navigateTo("#record/detail");
 }
 
 function selectRecordMainCategory(category) {
   if (state.recordCategoryReturn === "simple") {
     state.recordSimple.category = category;
-    const subcategories = getCategoryChildren(state.recordSimple.type, category);
-    state.recordSimple.subcategory = subcategories[0] || category;
+    state.recordSimple.subcategory = "";
     renderRecordSimple();
     navigateTo("#record/simple");
     return;
@@ -1321,7 +1410,8 @@ function selectRecordMainCategory(category) {
   if (!ensureRecordAmount()) return;
   state.recordDraft.category = category;
   state.recordDraft.subcategory = "";
-  navigateTo(`#record/subcategory/${encodeURIComponent(category)}`);
+  const subcategories = getCategoryChildren(state.recordDraft.type, category);
+  navigateTo(subcategories.length ? `#record/subcategory/${encodeURIComponent(category)}` : "#record/detail");
   renderRecordInput();
 }
 
@@ -1343,14 +1433,14 @@ function handleRecordCategoryPick(event) {
   if (recentButton) {
     if (state.recordCategoryReturn === "simple") {
       state.recordSimple.category = recentButton.dataset.recentCategory;
-      state.recordSimple.subcategory = recentButton.dataset.recentSubcategory || state.recordSimple.category;
+      state.recordSimple.subcategory = recentButton.dataset.recentSubcategory || "";
       renderRecordSimple();
       navigateTo("#record/simple");
       return;
     }
     if (!ensureRecordAmount()) return;
     state.recordDraft.category = recentButton.dataset.recentCategory;
-    state.recordDraft.subcategory = recentButton.dataset.recentSubcategory || state.recordDraft.category;
+    state.recordDraft.subcategory = recentButton.dataset.recentSubcategory || "";
     navigateTo("#record/detail");
     return;
   }
@@ -1397,7 +1487,7 @@ function recentCategoryPairs(type) {
     .filter((entry) => entry.type === type && entry.category)
     .sort((a, b) => (b.updatedAt || b.createdAt || "").localeCompare(a.updatedAt || a.createdAt || ""))
     .reduce((items, entry) => {
-      const subcategory = entry.subcategory || entry.category;
+      const subcategory = entry.subcategory || "";
       const key = `${entry.category}\n${subcategory}`;
       if (seen.has(key) || items.length >= 8) return items;
       seen.add(key);
@@ -1554,19 +1644,251 @@ function setSubcategoryIcon(type, category, subcategory, icon) {
   if (child) child.icon = icon || defaultIconFor(subcategory);
 }
 
+function cloneSplits(value) {
+  return Array.isArray(value) ? value.map((split) => ({ ...split })) : [];
+}
+
+function getSplitEditorData() {
+  if (state.splitEditor.context === "edit") {
+    return {
+      type: getSelectedType(),
+      amount: Number(amountInput.value || 0),
+      category: categorySelect.value,
+      subcategory: subcategorySelect.value,
+      splits: state.editingSplits,
+    };
+  }
+  return {
+    type: state.recordDraft.type,
+    amount: Number(state.recordDraft.amount || calculateAmount(state.recordDraft.expression) || 0),
+    category: state.recordDraft.category,
+    subcategory: state.recordDraft.subcategory,
+    splits: state.recordDraft.splits || [],
+  };
+}
+
+function setSplitEditorSplits(splits) {
+  if (state.splitEditor.context === "edit") state.editingSplits = splits;
+  else state.recordDraft.splits = splits;
+}
+
+function openSplitEditor(context, returnHash) {
+  const existingSplits = context === "edit" ? state.editingSplits : state.recordDraft.splits || [];
+  state.splitEditor = { context, returnHash, preserveEditDraft: false, originalSplits: cloneSplits(existingSplits) };
+  if (context === "edit") {
+    state.editFormDraft = {
+      type: getSelectedType(),
+      amount: amountInput.value,
+      category: categorySelect.value,
+      subcategory: subcategorySelect.value,
+      date: dateInput.value,
+      merchant: merchantInput.value,
+      tags: tagsInput.value,
+      note: noteInput.value,
+    };
+  }
+  const data = getSplitEditorData();
+  if (!Number.isFinite(data.amount) || data.amount <= 0) {
+    alert("请先输入总金额");
+    return;
+  }
+  if (!data.category) {
+    alert("请先选择主分类");
+    return;
+  }
+  if (!data.splits.length) {
+    setSplitEditorSplits([
+      { amount: 0, category: data.category, subcategory: data.subcategory || "" },
+      { amount: 0, category: data.category, subcategory: "" },
+    ]);
+  }
+  navigateTo("#record/split");
+}
+
+function openSimpleSplitEditor() {
+  const amount = Number(simpleAmount.value);
+  const date = simpleDate.value;
+  if (!Number.isFinite(amount) || amount <= 0) {
+    alert("请输入金额");
+    return;
+  }
+  if (!date) {
+    alert("请选择日期");
+    return;
+  }
+  if (!state.recordSimple.category) {
+    alert("请选择分类");
+    return;
+  }
+  state.recordDraft.type = state.recordSimple.type;
+  state.recordDraft.amount = amount;
+  state.recordDraft.expression = formatPlainAmount(amount);
+  state.recordDraft.category = state.recordSimple.category;
+  state.recordDraft.subcategory = state.recordSimple.subcategory;
+  state.recordDraft.date = date;
+  state.recordDraft.merchant = simpleMerchant.value;
+  state.recordDraft.tags = normalizeTags(simpleTags.value);
+  state.recordDraft.note = simpleNote.value.trim();
+  state.recordDraft.splits = [];
+  state.recordDraft.source = "simple";
+  openSplitEditor("draft", "#record/detail");
+}
+
+function renderRecordSplit() {
+  const data = getSplitEditorData();
+  const splits = data.splits;
+  splitTransactionTotal.textContent = money(data.amount);
+  splitRows.innerHTML = splits
+    .map((split, index) => {
+      const categories = Object.keys(categoryTree[data.type] || {});
+      const categoryNames = split.category && !categories.includes(split.category) ? [split.category, ...categories] : categories;
+      const category = categoryNames.includes(split.category) ? split.category : categoryNames[0] || "";
+      if (category !== split.category) split.category = category;
+      const subcategories = getCategoryChildren(data.type, category);
+      const subcategoryNames = split.subcategory && !subcategories.includes(split.subcategory) ? [split.subcategory, ...subcategories] : subcategories;
+      return `
+        <article class="split-row" data-split-index="${index}">
+          <div class="split-row-head"><strong>第 ${index + 1} 项</strong><button class="split-delete" data-delete-split="${index}" type="button" aria-label="删除第 ${index + 1} 项">删除</button></div>
+          <label>主分类<select data-split-category="${index}">${categoryNames
+            .map((name) => `<option value="${escapeHTML(name)}" ${name === category ? "selected" : ""}>${escapeHTML(name)}</option>`)
+            .join("")}</select></label>
+          <label>小分类（可选）<select data-split-subcategory="${index}"><option value="">不选择小分类</option>${subcategoryNames
+            .map((name) => `<option value="${escapeHTML(name)}" ${name === split.subcategory ? "selected" : ""}>${escapeHTML(name)}</option>`)
+            .join("")}</select></label>
+          <label>金额<input data-split-amount="${index}" type="number" min="1" step="1" inputmode="decimal" value="${
+            split.amount > 0 ? split.amount : ""
+          }" placeholder="0" /></label>
+        </article>
+      `;
+    })
+    .join("");
+  renderSplitTotals();
+}
+
+function renderSplitTotals() {
+  const data = getSplitEditorData();
+  const allocatedUnits = data.splits.reduce((total, split) => total + toMinorUnits(split.amount), 0);
+  const totalUnits = toMinorUnits(data.amount);
+  const remainingUnits = totalUnits - allocatedUnits;
+  splitAllocated.textContent = money(allocatedUnits / 100);
+  splitRemaining.textContent = money(remainingUnits / 100);
+  splitRemaining.classList.toggle("expense", remainingUnits < 0);
+  splitRemaining.classList.toggle("income", remainingUnits === 0);
+  splitError.hidden = true;
+}
+
+function handleSplitEditorChange(event) {
+  const amountInputTarget = event.target.closest("[data-split-amount]");
+  const categoryInput = event.target.closest("[data-split-category]");
+  const subcategoryInput = event.target.closest("[data-split-subcategory]");
+  if (!amountInputTarget && !categoryInput && !subcategoryInput) return;
+  const data = getSplitEditorData();
+  const index = Number(
+    amountInputTarget
+      ? amountInputTarget.dataset.splitAmount
+      : categoryInput
+        ? categoryInput.dataset.splitCategory
+        : subcategoryInput.dataset.splitSubcategory,
+  );
+  const split = data.splits[index];
+  if (!split) return;
+  if (amountInputTarget) {
+    split.amount = normalizeSplitAmount(amountInputTarget.value);
+    renderSplitTotals();
+    return;
+  }
+  if (categoryInput) {
+    split.category = categoryInput.value;
+    split.subcategory = "";
+    renderRecordSplit();
+    return;
+  }
+  split.subcategory = subcategoryInput.value;
+}
+
+function handleSplitEditorClick(event) {
+  const button = event.target.closest("[data-delete-split]");
+  if (!button) return;
+  const splits = getSplitEditorData().splits;
+  splits.splice(Number(button.dataset.deleteSplit), 1);
+  renderRecordSplit();
+}
+
+function appendSplitRow() {
+  const data = getSplitEditorData();
+  data.splits.push({ amount: 0, category: data.category || getFirstCategory(data.type), subcategory: "" });
+  renderRecordSplit();
+}
+
+function completeSplitEditor() {
+  const data = getSplitEditorData();
+  const error = getSplitValidationError(data.splits, data.type, data.amount, true);
+  if (error) {
+    splitError.textContent = error;
+    splitError.hidden = false;
+    return;
+  }
+  setSplitEditorSplits(data.splits.map((split) => normalizeSplit(split, data.type)).filter(Boolean));
+  renderEditSplitStatus();
+  returnFromSplitEditor();
+}
+
+function clearSplitEditor() {
+  setSplitEditorSplits([]);
+  renderEditSplitStatus();
+  returnFromSplitEditor();
+}
+
+function cancelSplitEditor() {
+  setSplitEditorSplits(cloneSplits(state.splitEditor.originalSplits));
+  renderEditSplitStatus();
+  returnFromSplitEditor();
+}
+
+function returnFromSplitEditor() {
+  if (state.splitEditor.context === "edit") state.splitEditor.preserveEditDraft = true;
+  navigateTo(state.splitEditor.returnHash || "#record/detail");
+}
+
+function renderEditSplitStatus() {
+  const count = state.editingSplits.length;
+  editSplitStatus.textContent = count ? `已拆分 ${count} 项` : "未拆分";
+  editSplits.textContent = count ? "编辑拆账" : "拆分这笔消费";
+  removeEditSplits.hidden = !count;
+}
+
+function renderSplitSummaryRows(splits, type) {
+  return splits
+    .map(
+      (split) => `<div class="detail-split-row"><span class="record-list-icon">${getSubcategoryIcon(
+        split.category,
+        split.subcategory,
+        type,
+      )}</span><span><strong>${escapeHTML(split.category)}${split.subcategory ? ` · ${escapeHTML(split.subcategory)}` : ""}</strong></span><b>${money(
+        split.amount,
+      )}</b></div>`,
+    )
+    .join("");
+}
+
 function saveRecordInput() {
   const amount = state.recordDraft.amount || calculateAmount(state.recordDraft.expression);
   if (!amount || amount <= 0) {
     alert("请输入金额");
     return;
   }
-  if (!state.recordDraft.category || !state.recordDraft.subcategory) {
+  if (!state.recordDraft.category) {
     navigateTo("#record/category");
     return;
   }
   const date = state.recordDraft.date || detailRecordDate.value;
   if (!validDate(date)) {
     alert("请选择日期");
+    return;
+  }
+  const splitErrorMessage = getSplitValidationError(state.recordDraft.splits || [], state.recordDraft.type, amount, false);
+  if (splitErrorMessage) {
+    alert(splitErrorMessage);
     return;
   }
 
@@ -1576,6 +1898,9 @@ function saveRecordInput() {
     category: state.recordDraft.category,
     subcategory: state.recordDraft.subcategory,
     date,
+    merchant: detailRecordMerchant.value,
+    tags: detailRecordTags.value,
+    splits: state.recordDraft.splits || [],
     note: detailRecordNote.value.trim(),
   });
 
@@ -1584,8 +1909,20 @@ function saveRecordInput() {
   state.recordDraft.category = "";
   state.recordDraft.subcategory = "";
   state.recordDraft.date = "";
+  state.recordDraft.merchant = "";
+  state.recordDraft.tags = [];
+  state.recordDraft.splits = [];
   state.recordDraft.note = "";
+  if (state.recordDraft.source === "simple") {
+    simpleAmount.value = "";
+    simpleMerchant.value = "";
+    simpleTags.value = "";
+    simpleNote.value = "";
+  }
+  state.recordDraft.source = "input";
   inputRecordNote.value = "";
+  detailRecordMerchant.value = "";
+  detailRecordTags.value = "";
   detailRecordNote.value = "";
   render();
   showToast("已记录");
@@ -1597,8 +1934,7 @@ function handleSimpleCategoryPick(event) {
   if (!button) return;
 
   state.recordSimple.category = button.dataset.simpleCategory;
-  const subcategories = getCategoryChildren(state.recordSimple.type, state.recordSimple.category);
-  state.recordSimple.subcategory = subcategories[0] || state.recordSimple.category;
+  state.recordSimple.subcategory = "";
   renderRecordSimple();
 }
 
@@ -1624,12 +1960,17 @@ function saveRecordSimple() {
     type: state.recordSimple.type,
     amount,
     category,
-    subcategory: state.recordSimple.subcategory || category,
+    subcategory: state.recordSimple.subcategory,
     date,
+    merchant: simpleMerchant.value,
+    tags: simpleTags.value,
+    splits: [],
     note: simpleNote.value.trim(),
   });
 
   simpleAmount.value = "";
+  simpleMerchant.value = "";
+  simpleTags.value = "";
   simpleNote.value = "";
   render();
   showToast("已记录");
@@ -1702,14 +2043,22 @@ function prepareEditRoute(id) {
     return false;
   }
 
+  const preserveDraft = state.splitEditor.preserveEditDraft && state.editingId === id && state.editFormDraft;
+  const formEntry = preserveDraft ? { ...entry, ...state.editFormDraft } : entry;
   state.editingId = id;
-  state.selectedDate = entry.date;
-  state.month = entry.date.slice(0, 7);
-  setFormType(entry.type);
-  amountInput.value = entry.amount;
-  updateCategoryOptions(entry.type, entry.category, entry.subcategory);
-  dateInput.value = entry.date;
-  noteInput.value = entry.note || "";
+  state.selectedDate = formEntry.date;
+  state.month = formEntry.date.slice(0, 7);
+  setFormType(formEntry.type);
+  amountInput.value = formEntry.amount;
+  updateCategoryOptions(formEntry.type, formEntry.category, formEntry.subcategory);
+  dateInput.value = formEntry.date;
+  merchantInput.value = formEntry.merchant || "";
+  tagsInput.value = formatTagsInput(formEntry.tags);
+  if (!preserveDraft) state.editingSplits = cloneSplits(entry.splits);
+  renderEditSplitStatus();
+  noteInput.value = formEntry.note || "";
+  state.splitEditor.preserveEditDraft = false;
+  state.editFormDraft = null;
   formTitle.textContent = "编辑记录";
   submitEntry.textContent = "保存修改";
   cancelEdit.hidden = false;
@@ -1801,7 +2150,14 @@ function handleProfileImage(event, field) {
 }
 
 function sumCategoryLike(entries, names) {
-  return sum(entries.filter((entry) => names.some((name) => entry.category === name || entry.subcategory === name)));
+  return entries.reduce(
+    (total, entry) =>
+      total +
+      getEntryCategoryAllocations(entry)
+        .filter((allocation) => names.some((name) => allocation.category === name || allocation.subcategory === name))
+        .reduce((subtotal, allocation) => subtotal + allocation.amount, 0),
+    0,
+  );
 }
 
 function renderCalendar(monthEntries) {
@@ -1858,7 +2214,7 @@ function renderDay() {
   dayBalance.textContent = money(income - expense);
 
   dayList.innerHTML =
-    dayEntries.map(renderEntryCard).join("") ||
+    dayEntries.map((entry) => renderEntryCard(entry, true)).join("") ||
     '<p class="empty-state is-visible">这一天还没有记录，点击日期后可直接添加收入或支出。</p>';
 }
 
@@ -1889,22 +2245,37 @@ function renderAnalysis() {
 
 function groupExpenseByCategory(expenseEntries) {
   return expenseEntries.reduce((result, entry) => {
-    const category = entry.category || "其他";
-    result[category] = result[category] || { amount: 0, count: 0 };
-    result[category].amount += entry.amount;
-    result[category].count += 1;
+    const countedCategories = new Set();
+    getEntryCategoryAllocations(entry).forEach((allocation) => {
+      const category = allocation.category || "其他";
+      result[category] = result[category] || { amount: 0, count: 0 };
+      result[category].amount += allocation.amount;
+      if (!countedCategories.has(category)) result[category].count += 1;
+      countedCategories.add(category);
+    });
     return result;
   }, {});
 }
 
-function groupExpenseBySubcategory(expenseEntries) {
+function groupExpenseBySubcategory(expenseEntries, categoryFilter = "") {
   return expenseEntries.reduce((result, entry) => {
-    const subcategory = entry.subcategory || "未分类";
-    result[subcategory] = result[subcategory] || { amount: 0, count: 0 };
-    result[subcategory].amount += entry.amount;
-    result[subcategory].count += 1;
+    const countedSubcategories = new Set();
+    getEntryCategoryAllocations(entry)
+      .filter((allocation) => !categoryFilter || allocation.category === categoryFilter)
+      .forEach((allocation) => {
+        const subcategory = allocation.subcategory || "未分类";
+        result[subcategory] = result[subcategory] || { amount: 0, count: 0 };
+        result[subcategory].amount += allocation.amount;
+        if (!countedSubcategories.has(subcategory)) result[subcategory].count += 1;
+        countedSubcategories.add(subcategory);
+      });
     return result;
   }, {});
+}
+
+function getEntryCategoryAllocations(entry) {
+  if (Array.isArray(entry.splits) && entry.splits.length) return entry.splits;
+  return [{ amount: Number(entry.amount || 0), category: entry.category || "其他", subcategory: entry.subcategory || "" }];
 }
 
 function renderDonutChart(grouped, total) {
@@ -1985,11 +2356,9 @@ function renderAnalysisCategoryDetail() {
 
   const category = cleanName(decodeURIComponent(route.param || ""));
   const month = state.analysisMonth;
-  const monthEntries = state.entries.filter(
-    (entry) => entry.type === "expense" && entry.date.startsWith(month) && (entry.category || "其他") === category,
-  );
-  const grouped = groupExpenseBySubcategory(monthEntries);
-  const total = sum(monthEntries);
+  const monthEntries = state.entries.filter((entry) => entry.type === "expense" && entry.date.startsWith(month));
+  const grouped = groupExpenseBySubcategory(monthEntries, category);
+  const total = Object.values(grouped).reduce((sum, item) => sum + item.amount, 0);
   const registeredSubcategories = getCategoryChildren("expense", category);
   const subcategories = [...new Set([...registeredSubcategories, ...Object.keys(grouped)])];
 
@@ -2038,20 +2407,33 @@ function renderAnalysisCategoryDetail() {
     `;
 }
 
-function renderEntryCard(entry) {
-  const icon = getSubcategoryIcon(entry.category, entry.subcategory, entry.type);
+function renderEntryCard(entry, showSplitDetails = false) {
+  const hasSplits = Array.isArray(entry.splits) && entry.splits.length > 0;
+  const icon = hasSplits ? "🧾" : getSubcategoryIcon(entry.category, entry.subcategory, entry.type);
+  const categoryLabel = hasSplits ? `拆分 · ${entry.splits.length}项` : entry.subcategory ? `${entry.category} · ${entry.subcategory}` : entry.category;
+  const secondary = [entry.date, entry.merchant, entry.note].filter(Boolean).map(escapeHTML).join(" · ");
+  const visibleTags = entry.tags.slice(0, 3);
+  const remainingTags = entry.tags.length - visibleTags.length;
+  const tags = entry.tags.length
+    ? `<div class="entry-tags">${visibleTags.map((tag) => `<span>#${escapeHTML(tag)}</span>`).join("")}${
+        remainingTags > 0 ? `<span>+${remainingTags}</span>` : ""
+      }</div>`
+    : "";
+  const splitDetails = hasSplits && showSplitDetails ? `<div class="entry-split-list">${renderSplitSummaryRows(entry.splits, entry.type)}</div>` : "";
   return `
     <article class="entry-card ${entry.type}" data-open-edit="${entry.id}">
       <div class="entry-icon">${icon}</div>
       <div class="entry-meta">
-        <strong>${escapeHTML(entry.category)} · ${escapeHTML(entry.subcategory || "其他")}</strong>
-        <span>${entry.date}${entry.note ? ` · ${escapeHTML(entry.note)}` : ""}</span>
+        <strong>${escapeHTML(categoryLabel)}</strong>
+        <span>${secondary}</span>
+        ${tags}
       </div>
       <strong class="amount-cell ${entry.type}">${entry.type === "income" ? "+" : "-"}${money(entry.amount)}</strong>
       <div class="entry-actions">
         <button class="small-button edit" data-edit="${entry.id}" type="button" title="编辑" aria-label="编辑">编辑</button>
         <button class="small-button delete" data-delete="${entry.id}" type="button" title="删除" aria-label="删除">删除</button>
       </div>
+      ${splitDetails}
     </article>
   `;
 }
@@ -2060,13 +2442,7 @@ function renderCategories(monthEntries) {
   if (!document.querySelector("#categoryList")) return;
   const expenseEntries = monthEntries.filter((entry) => entry.type === "expense");
   const total = sum(expenseEntries);
-  const grouped = expenseEntries.reduce((result, entry) => {
-    const key = entry.category || "其他";
-    result[key] = result[key] || { amount: 0, count: 0 };
-    result[key].amount += entry.amount;
-    result[key].count += 1;
-    return result;
-  }, {});
+  const grouped = groupExpenseByCategory(expenseEntries);
 
   const categoryTotal = document.querySelector("#categoryTotal");
   if (categoryTotal) categoryTotal.textContent = money(total);
@@ -2318,6 +2694,10 @@ function beginEdit(id) {
   amountInput.value = entry.amount;
   updateCategoryOptions(entry.type, entry.category, entry.subcategory);
   dateInput.value = entry.date;
+  merchantInput.value = entry.merchant || "";
+  tagsInput.value = formatTagsInput(entry.tags);
+  state.editingSplits = cloneSplits(entry.splits);
+  renderEditSplitStatus();
   noteInput.value = entry.note || "";
   formTitle.textContent = "编辑记录";
   submitEntry.textContent = "保存修改";
@@ -2328,6 +2708,7 @@ function beginEdit(id) {
 
 function resetForm(date = state.selectedDate) {
   state.editingId = null;
+  state.editingSplits = [];
   form.reset();
   setFormType("expense");
   updateCategoryOptions("expense");
@@ -2372,10 +2753,9 @@ function updateCategoryOptions(type, selectedCategory = "", selectedSubcategory 
 
 function updateSubcategoryOptions(type, category, selectedSubcategory = "") {
   const baseOptions = getCategoryChildren(type, category);
-  if (!baseOptions.length) baseOptions.push(category || "其他");
   const options = selectedSubcategory && !baseOptions.includes(selectedSubcategory) ? [selectedSubcategory, ...baseOptions] : baseOptions;
-  const selected = options.includes(selectedSubcategory) ? selectedSubcategory : options[0];
-  subcategorySelect.innerHTML = options
+  const selected = options.includes(selectedSubcategory) ? selectedSubcategory : "";
+  subcategorySelect.innerHTML = `<option value="" ${selected ? "" : "selected"}>不选择小分类</option>` + options
     .map((name) => `<option value="${name}" ${name === selected ? "selected" : ""}>${name}</option>`)
     .join("") + `<option value="${ADD_SUBCATEGORY_VALUE}">+ 新增小分类</option>`;
 }
@@ -2412,9 +2792,15 @@ function renameCategory(type, oldName) {
 
   categoryTree[type][newName] = categoryTree[type][oldName];
   delete categoryTree[type][oldName];
-  state.entries = state.entries.map((entry) =>
-    entry.type === type && entry.category === oldName ? { ...entry, category: newName, updatedAt: new Date().toISOString() } : entry,
-  );
+  state.entries = state.entries.map((entry) => {
+    if (entry.type !== type) return entry;
+    const parentChanged = entry.category === oldName;
+    const splits = (entry.splits || []).map((split) => (split.category === oldName ? { ...split, category: newName } : split));
+    const splitsChanged = splits.some((split, index) => split !== entry.splits[index]);
+    return parentChanged || splitsChanged
+      ? { ...entry, category: parentChanged ? newName : entry.category, splits, updatedAt: new Date().toISOString() }
+      : entry;
+  });
   saveCategoryTree();
   saveEntries();
   updateCategoryOptions(type, newName);
@@ -2438,11 +2824,23 @@ function deleteCategory(type, category) {
 
   ensureFallbackCategory(type);
   delete categoryTree[type][category];
-  state.entries = state.entries.map((entry) =>
-    entry.type === type && entry.category === category
-      ? { ...entry, category: "其他", subcategory: "未分类", updatedAt: new Date().toISOString() }
-      : entry,
-  );
+  state.entries = state.entries.map((entry) => {
+    if (entry.type !== type) return entry;
+    const parentChanged = entry.category === category;
+    const splits = (entry.splits || []).map((split) =>
+      split.category === category ? { ...split, category: "其他", subcategory: "" } : split,
+    );
+    const splitsChanged = splits.some((split, index) => split !== entry.splits[index]);
+    return parentChanged || splitsChanged
+      ? {
+          ...entry,
+          category: parentChanged ? "其他" : entry.category,
+          subcategory: parentChanged ? "未分类" : entry.subcategory,
+          splits,
+          updatedAt: new Date().toISOString(),
+        }
+      : entry;
+  });
 
   saveCategoryTree();
   saveEntries();
@@ -2484,11 +2882,17 @@ function renameSubcategory(type, category, oldName) {
   if (node) {
     node.children = node.children.map((item) => (item.name === oldName ? { ...item, name: newName, icon: item.icon || defaultIconFor(newName) } : item));
   }
-  state.entries = state.entries.map((entry) =>
-    entry.type === type && entry.category === category && entry.subcategory === oldName
-      ? { ...entry, subcategory: newName, updatedAt: new Date().toISOString() }
-      : entry,
-  );
+  state.entries = state.entries.map((entry) => {
+    if (entry.type !== type) return entry;
+    const parentChanged = entry.category === category && entry.subcategory === oldName;
+    const splits = (entry.splits || []).map((split) =>
+      split.category === category && split.subcategory === oldName ? { ...split, subcategory: newName } : split,
+    );
+    const splitsChanged = splits.some((split, index) => split !== entry.splits[index]);
+    return parentChanged || splitsChanged
+      ? { ...entry, subcategory: parentChanged ? newName : entry.subcategory, splits, updatedAt: new Date().toISOString() }
+      : entry;
+  });
 
   saveCategoryTree();
   saveEntries();
@@ -2515,11 +2919,17 @@ function deleteSubcategory(type, category, subcategory) {
 
   const node = getCategoryNode(type, category);
   if (node) node.children = node.children.filter((item) => item.name !== subcategory);
-  state.entries = state.entries.map((entry) =>
-    entry.type === type && entry.category === category && entry.subcategory === subcategory
-      ? { ...entry, subcategory: "未分类", updatedAt: new Date().toISOString() }
-      : entry,
-  );
+  state.entries = state.entries.map((entry) => {
+    if (entry.type !== type) return entry;
+    const parentChanged = entry.category === category && entry.subcategory === subcategory;
+    const splits = (entry.splits || []).map((split) =>
+      split.category === category && split.subcategory === subcategory ? { ...split, subcategory: "未分类" } : split,
+    );
+    const splitsChanged = splits.some((split, index) => split !== entry.splits[index]);
+    return parentChanged || splitsChanged
+      ? { ...entry, subcategory: parentChanged ? "未分类" : entry.subcategory, splits, updatedAt: new Date().toISOString() }
+      : entry;
+  });
 
   saveCategoryTree();
   saveEntries();
@@ -2556,6 +2966,71 @@ function canManageSubcategory(type, category, subcategory) {
 
 function cleanName(value) {
   return (value || "").trim().replace(/\s+/g, " ");
+}
+
+function normalizeOptionalText(value) {
+  return typeof value === "string" ? cleanName(value) : "";
+}
+
+function normalizeTags(value) {
+  const source = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[,，]/) : [];
+  const seen = new Set();
+  return source.reduce((tags, item) => {
+    if (typeof item !== "string") return tags;
+    const tag = cleanName(item).replace(/^#+/, "");
+    if (!tag || seen.has(tag)) return tags;
+    seen.add(tag);
+    tags.push(tag);
+    return tags;
+  }, []);
+}
+
+function formatTagsInput(value) {
+  return normalizeTags(value).join("，");
+}
+
+function normalizeSplitAmount(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) / 100 : 0;
+}
+
+function toMinorUnits(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
+}
+
+function normalizeSplit(split, type) {
+  if (!split || typeof split !== "object" || Array.isArray(split)) return null;
+  const amount = normalizeSplitAmount(split.amount);
+  const category = normalizeOptionalText(split.category);
+  if (!amount || !category) return null;
+  return {
+    amount,
+    category,
+    subcategory: normalizeSubcategory(type, category, split.subcategory),
+  };
+}
+
+function getSplitValidationError(splits, type, totalAmount, requireRegisteredCategory = false) {
+  if (!Array.isArray(splits) || !splits.length) return "";
+  if (splits.length < 2) return "拆账至少需要两项；只有一项时请使用普通分类。";
+  for (const split of splits) {
+    const normalized = normalizeSplit(split, type);
+    if (!normalized) return "每个拆分项都需要有效的分类和大于 0 的金额。";
+    if (requireRegisteredCategory && !categoryTree[type]?.[normalized.category]) return `分类“${normalized.category}”无效，请重新选择。`;
+  }
+  const allocatedUnits = splits.reduce((total, split) => total + toMinorUnits(split.amount), 0);
+  if (allocatedUnits !== toMinorUnits(totalAmount)) {
+    return `拆分金额合计必须等于总金额，当前还差 ${money((toMinorUnits(totalAmount) - allocatedUnits) / 100)}。`;
+  }
+  return "";
+}
+
+function normalizeSplits(value, type, totalAmount) {
+  if (!Array.isArray(value)) return [];
+  const splits = value.map((split) => normalizeSplit(split, type)).filter(Boolean);
+  if (getSplitValidationError(splits, type, totalAmount, false)) return [];
+  return splits;
 }
 
 function getFirstCategory(type) {
@@ -2638,6 +3113,7 @@ function normalizeEntry(entry) {
   const amount = Number(entry.amount || 0);
   const category = normalizeCategory(type, entry.category);
   const subcategory = normalizeSubcategory(type, category, entry.subcategory);
+  const splits = normalizeSplits(entry.splits, type, amount);
   const createdAt = entry.createdAt || new Date().toISOString();
 
   return {
@@ -2647,6 +3123,9 @@ function normalizeEntry(entry) {
     category,
     subcategory,
     date: validDate(entry.date) ? entry.date : todayISO(),
+    merchant: normalizeOptionalText(entry.merchant),
+    tags: normalizeTags(entry.tags),
+    splits,
     note: entry.note || "",
     createdAt,
     updatedAt: entry.updatedAt || createdAt,
@@ -2672,8 +3151,9 @@ function normalizeCategory(type, category) {
 
 function normalizeSubcategory(type, category, subcategory) {
   const options = getCategoryChildren(type, category);
-  if (options.includes(subcategory)) return subcategory;
-  const cleanSubcategory = cleanName(subcategory) || "未分类";
+  const cleanSubcategory = normalizeOptionalText(subcategory);
+  if (!cleanSubcategory) return "";
+  if (options.includes(cleanSubcategory)) return cleanSubcategory;
   if (categoryTree[type]?.[category] && !getCategoryChildren(type, category).includes(cleanSubcategory)) {
     addSubcategoryNode(type, category, cleanSubcategory, defaultIconFor(cleanSubcategory));
     saveCategoryTree();
@@ -2711,8 +3191,17 @@ function formatDateWithWeekday(date) {
 }
 
 function compactMoney(value) {
-  if (value >= 10000) return `¥${Math.round(value / 1000) / 10}万`;
-  return `¥${Math.round(value).toLocaleString("ja-JP")}`;
+  const amount = Math.abs(Number(value) || 0);
+  if (amount < 1000) return String(Math.round(amount));
+
+  const units = [
+    { threshold: 1_000_000_000, divisor: 1_000_000_000, suffix: "b" },
+    { threshold: 1_000_000, divisor: 1_000_000, suffix: "m" },
+    { threshold: 1_000, divisor: 1_000, suffix: "k" },
+  ];
+  const unit = units.find(({ threshold }) => amount >= threshold);
+  const compact = Math.round((amount / unit.divisor) * 10) / 10;
+  return `${compact.toLocaleString("en-US", { maximumFractionDigits: 1 })}${unit.suffix}`;
 }
 
 function todayISO() {

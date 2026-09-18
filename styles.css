@@ -844,6 +844,7 @@ textarea:focus {
 
 .detail-amount-row span,
 .detail-row span,
+.detail-text-field span,
 .detail-note-field span {
   color: var(--muted);
   font-size: 13px;
@@ -898,6 +899,184 @@ textarea:focus {
   display: grid;
   gap: 10px;
   padding: 14px 16px;
+}
+
+.detail-text-field {
+  display: grid;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding: 13px 16px;
+}
+
+.detail-text-field input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel-soft);
+  color: var(--ink);
+  font: inherit;
+  padding: 12px 13px;
+  outline: none;
+}
+
+.detail-split-summary {
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-soft);
+  padding: 6px 16px 10px;
+}
+
+.detail-split-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  min-height: 48px;
+}
+
+.detail-split-row .record-list-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  font-size: 17px;
+}
+
+.detail-split-row strong,
+.detail-split-row b {
+  font-size: 13px;
+}
+
+.detail-split-row b {
+  white-space: nowrap;
+}
+
+.split-editor-card {
+  gap: 14px;
+}
+
+.split-total-head,
+.split-totals,
+.split-row-head,
+.split-editor-actions,
+.form-split-section,
+.form-split-actions {
+  display: flex;
+  align-items: center;
+}
+
+.split-total-head {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+}
+
+.split-total-head strong {
+  font-size: 28px;
+}
+
+.split-rows {
+  display: grid;
+  gap: 12px;
+}
+
+.split-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel-soft);
+  padding: 12px;
+}
+
+.split-row-head {
+  grid-column: 1 / -1;
+  justify-content: space-between;
+}
+
+.split-row label:last-child {
+  grid-column: 1 / -1;
+}
+
+.split-delete {
+  border: 0;
+  background: transparent;
+  color: var(--red);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.split-add-button {
+  min-height: 46px;
+  border: 1px dashed var(--green);
+  border-radius: 14px;
+  background: var(--green-soft);
+  color: var(--green);
+  font: inherit;
+  font-weight: 900;
+}
+
+.split-totals {
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.split-totals div {
+  display: grid;
+  gap: 4px;
+}
+
+.split-totals div:last-child {
+  text-align: right;
+}
+
+.split-error {
+  margin: 0;
+  border-radius: 12px;
+  background: var(--red-soft);
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 10px 12px;
+}
+
+.split-editor-actions {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.split-editor-actions .record-action-button {
+  flex: 1;
+}
+
+.split-entry-button {
+  min-height: 44px;
+}
+
+.form-split-section {
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel-soft);
+  padding: 12px 14px;
+}
+
+.form-split-section > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.form-split-section span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.form-split-actions {
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .detail-note-field textarea {
@@ -1275,7 +1454,7 @@ textarea:focus {
   background: var(--panel-soft);
   color: var(--ink);
   cursor: pointer;
-  padding: 9px;
+  padding: 9px 6px;
   text-align: left;
 }
 
@@ -1320,12 +1499,16 @@ textarea:focus {
 
 .calendar-total {
   display: block;
+  width: 100%;
+  min-width: 0;
   margin-top: 5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
   white-space: nowrap;
   font-size: 11px;
   font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
 }
 
 .calendar-day.is-selected .income,
@@ -1420,6 +1603,35 @@ textarea:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.entry-tags {
+  display: flex;
+  gap: 5px;
+  min-width: 0;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.entry-split-list {
+  grid-column: 2 / -1;
+  width: 100%;
+  border-top: 1px solid var(--line);
+  margin-top: 2px;
+  padding-top: 8px;
+}
+
+.entry-meta .entry-tags span {
+  display: inline-block;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 0 7px;
 }
 
 .entry-meta span {
@@ -1894,12 +2106,17 @@ textarea:focus {
   .weekday-row,
   .calendar-grid {
     gap: 4px;
+    margin-inline: -4px;
+  }
+
+  .calendar-panel {
+    padding-inline: 12px;
   }
 
   .calendar-day {
     min-height: 72px;
     border-radius: 13px;
-    padding: 5px;
+    padding: 5px 1px;
   }
 
   .calendar-date {
